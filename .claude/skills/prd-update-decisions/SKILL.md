@@ -2,7 +2,6 @@
 name: prd-update-decisions
 description: Update PRD based on design decisions and strategic changes made during conversations
 category: project-management
-disable-model-invocation: true
 ---
 
 # PRD Update Decisions Slash Command

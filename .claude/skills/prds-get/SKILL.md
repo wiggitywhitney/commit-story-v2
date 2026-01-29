@@ -2,7 +2,6 @@
 name: prds-get
 description: Fetch all open GitHub issues from this project that have the 'PRD' label
 category: project-management
-disable-model-invocation: true
 ---
 
 # Get All PRDs

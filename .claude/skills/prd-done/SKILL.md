@@ -2,7 +2,6 @@
 name: prd-done
 description: Complete PRD implementation workflow - create branch, push changes, create PR, merge, and close issue
 category: project-management
-disable-model-invocation: true
 ---
 
 # Complete PRD Implementation

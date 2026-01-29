@@ -1,7 +1,7 @@
 # PRD #1: Project Setup
 
 **GitHub Issue**: [#1](https://github.com/wiggitywhitney/commit-story-v2/issues/1)
-**Status**: Pending
+**Status**: In Progress
 **Priority**: High
 **Dependencies**: None
 
@@ -38,11 +38,11 @@ Initialize a Node.js ES modules project with:
 ## Implementation Milestones
 
 ### Milestone 0: Research (Required First)
-- [ ] Research current LangGraph/LangChain package versions and compatibility
-- [ ] Check @langchain/anthropic setup patterns and configuration
-- [ ] Review Node.js ES modules best practices for 2026
-- [ ] Research vals secrets management patterns
-- [ ] Document findings in `docs/research/prd-1-project-setup.md`
+- [x] Research current LangGraph/LangChain package versions and compatibility
+- [x] Check @langchain/anthropic setup patterns and configuration
+- [x] Review Node.js ES modules best practices for 2026
+- [x] Research vals secrets management patterns
+- [x] Document findings in `docs/research/prd-1-project-setup.md`
 
 **Output**: Research document with current package versions, setup patterns, and recommendations
 

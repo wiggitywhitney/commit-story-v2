@@ -2,7 +2,6 @@
 name: prd-create
 description: Create documentation-first PRDs that guide development through user-facing content
 category: project-management
-disable-model-invocation: true
 ---
 
 # PRD Creation Slash Command
