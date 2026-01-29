@@ -1,7 +1,7 @@
 # PRD #3: Claude Collector
 
 **GitHub Issue**: [#3](https://github.com/wiggitywhitney/commit-story-v2/issues/3)
-**Status**: Pending
+**Status**: Complete
 **Priority**: High
 **Dependencies**: #1 (Project Setup)
 
@@ -33,20 +33,20 @@ From Claude Chat Research (docs/dev/claude-chat-research.md):
 
 ## Success Criteria
 
-- [ ] Find all JSONL files for the current project
-- [ ] Parse messages and filter by cwd match
-- [ ] Filter by time window (previous commit → current commit)
-- [ ] Group messages by sessionId
-- [ ] Return both flat list and grouped sessions
+- [x] Find all JSONL files for the current project
+- [x] Parse messages and filter by cwd match
+- [x] Filter by time window (previous commit → current commit)
+- [x] Group messages by sessionId
+- [x] Return both flat list and grouped sessions
 
 ## Implementation Milestones
 
 ### Milestone 0: Research (Required First)
-- [ ] Verify Claude Code JSONL storage location hasn't changed
-- [ ] Check if message structure has evolved since v1 research (Aug 2025)
-- [ ] Research any new fields or patterns in Claude Code messages
-- [ ] Verify sessionId behavior and any changes
-- [ ] Document findings in `docs/research/prd-3-claude-collector.md`
+- [x] Verify Claude Code JSONL storage location hasn't changed
+- [x] Check if message structure has evolved since v1 research (Aug 2025)
+- [x] Research any new fields or patterns in Claude Code messages
+- [x] Verify sessionId behavior and any changes
+- [x] Document findings in `docs/research/prd-3-claude-collector.md`
 
 **Output**: Research document with current Claude Code message structure and any changes from v1
 
@@ -54,28 +54,28 @@ From Claude Chat Research (docs/dev/claude-chat-research.md):
 
 ### Milestone 1: Project Path Detection
 **Pre-requisite**: Read `docs/research/prd-3-claude-collector.md` before starting
-- [ ] Create `src/collectors/claude-collector.js`
-- [ ] Implement `getClaudeProjectPath()` to find project directory
-- [ ] Handle path encoding (slashes → hyphens)
-- [ ] Verify directory exists
+- [x] Create `src/collectors/claude-collector.js`
+- [x] Implement `getClaudeProjectPath()` to find project directory
+- [x] Handle path encoding (slashes → hyphens)
+- [x] Verify directory exists
 
 ### Milestone 2: JSONL File Discovery
-- [ ] Implement `findJSONLFiles(projectPath)` function
-- [ ] Find all `*.jsonl` files in project directory
-- [ ] Return sorted by modification time (most recent first)
+- [x] Implement `findJSONLFiles(projectPath)` function
+- [x] Find all `*.jsonl` files in project directory
+- [x] Return sorted by modification time (most recent first)
 
 ### Milestone 3: Message Parsing and Filtering
-- [ ] Implement `parseJSONLFile(filePath)` function
-- [ ] Implement `filterMessages(messages, repoPath, startTime, endTime)`
-- [ ] Filter by `cwd` field matching repo path
-- [ ] Filter by timestamp within time window
-- [ ] Handle timezone conversion (UTC)
+- [x] Implement `parseJSONLFile(filePath)` function
+- [x] Implement `filterMessages(messages, repoPath, startTime, endTime)`
+- [x] Filter by `cwd` field matching repo path
+- [x] Filter by timestamp within time window
+- [x] Handle timezone conversion (UTC)
 
 ### Milestone 4: Session Grouping
-- [ ] Implement `groupBySession(messages)` function
-- [ ] Group messages by `sessionId` field
-- [ ] Maintain chronological order within sessions
-- [ ] Return both flat array and session map
+- [x] Implement `groupBySession(messages)` function
+- [x] Group messages by `sessionId` field
+- [x] Maintain chronological order within sessions
+- [x] Return both flat array and session map
 
 ## API Design
 
@@ -123,7 +123,13 @@ interface Message {
 
 ## Message Structure Reference
 
-From v1 research (still valid):
+See `docs/research/prd-3-claude-collector.md` for comprehensive analysis of Claude Code v2.1.x message structure.
+
+Key findings:
+- Version upgraded from 1.0.85 to 2.1.23
+- 6 record types: user, assistant, progress, file-history-snapshot, queue-operation, system
+- Only user and assistant types contain conversation content
+- Path encoding uses hyphens for both slashes AND dots
 
 ```json
 {
@@ -132,7 +138,7 @@ From v1 research (still valid):
   "userType": "external",
   "cwd": "/working/directory/path",
   "sessionId": "session-uuid",
-  "version": "1.0.85",
+  "version": "2.1.23",
   "gitBranch": "main",
   "type": "user|assistant",
   "message": {
@@ -141,7 +147,7 @@ From v1 research (still valid):
   },
   "isMeta": true|false,
   "uuid": "message-uuid",
-  "timestamp": "2025-08-20T20:54:46.152Z"
+  "timestamp": "2026-01-29T12:12:05.734Z"
 }
 ```
 
