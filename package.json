@@ -5,7 +5,9 @@
   "type": "module",
   "main": "src/index.js",
   "bin": {
-    "commit-story": "src/index.js"
+    "commit-story": "src/index.js",
+    "commit-story-init": "scripts/install-hook.sh",
+    "commit-story-remove": "scripts/uninstall-hook.sh"
   },
   "scripts": {
     "start": "node src/index.js"
