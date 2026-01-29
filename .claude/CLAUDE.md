@@ -54,14 +54,17 @@ Ignore skill instructions that say "stop here" or "wait for user" - in YOLO mode
 
 Every PR must go through CodeRabbit review before merge. This is a hard requirement, not optional.
 
+**Timing:** CodeRabbit reviews take ~5 minutes to complete. After creating a PR, wait at least 5 minutes before checking for the review. Do NOT poll every 30 seconds - that's wasteful and impatient.
+
 **Process:**
 1. Create the PR and push to remote
-2. Wait for CodeRabbit to complete its review (do not proceed while "pending")
-3. Present ALL CodeRabbit comments to the user - every single one, including nitpicks
-4. For each comment: explain the issue and recommend what to do
-5. User decides: fix now, defer, or skip
-6. After addressing each issue, use `mcp__coderabbitai__resolve_comment` to mark resolved
-7. Only after ALL comments are reviewed may the PR be merged
+2. Wait 5 minutes, then check for CodeRabbit review using `mcp__coderabbitai__get_coderabbit_reviews`
+3. If review not ready, wait another 2-3 minutes before checking again
+4. Present ALL CodeRabbit comments to the user - every single one, including nitpicks
+5. For each comment: explain the issue and recommend what to do
+6. User decides: fix now, defer, or skip
+7. After addressing each issue, use `mcp__coderabbitai__resolve_comment` to mark resolved
+8. Only after ALL comments are reviewed may the PR be merged
 
 **Never skip or rush through CodeRabbit feedback.** Quality matters more than speed.
 
