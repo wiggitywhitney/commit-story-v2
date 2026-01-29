@@ -1,7 +1,7 @@
 # PRD #8: MCP Server
 
 **GitHub Issue**: [#8](https://github.com/wiggitywhitney/commit-story-v2/issues/8)
-**Status**: In Progress
+**Status**: Complete (January 2026)
 **Priority**: Medium
 **Dependencies**: #1 (Project Setup), #6 (Journal Manager - for path utilities)
 
