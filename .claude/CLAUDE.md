@@ -45,8 +45,11 @@ When running PRD workflows, continue through the full cycle without stopping for
 - After task completion → automatically invoke `/prd-update-progress`
 - After progress update → automatically invoke `/prd-next` for the next task
 - Continue until PRD is complete, then invoke `/prd-done`
+- After `/prd-done` → automatically invoke `/prd-start` for the next PRD in the dependency chain
 
 Ignore skill instructions that say "stop here" or "wait for user" - in YOLO mode, keep moving unless there's an actual blocker or error.
+
+**NEVER ask "Shall I continue?" or "Do you want to proceed?" or "Ready to start?"** - just proceed. The user will interrupt if needed.
 
 **EXCEPTION: CodeRabbit reviews are REQUIRED before merging any PR.** Create the PR, wait for CodeRabbit to complete its review, then process ALL CodeRabbit feedback with the user before merging. This is non-negotiable.
 

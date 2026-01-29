@@ -1,7 +1,7 @@
 # PRD #2: Git Collector
 
 **GitHub Issue**: [#2](https://github.com/wiggitywhitney/commit-story-v2/issues/2)
-**Status**: Pending
+**Status**: Complete
 **Priority**: High
 **Dependencies**: #1 (Project Setup)
 
@@ -26,19 +26,19 @@ From PRD-32 (Journal File Filtering):
 
 ## Success Criteria
 
-- [ ] Extract commit hash, message, author, timestamp
-- [ ] Extract diff excluding `journal/entries/**` files
-- [ ] Handle merge commits (detect via parent count)
-- [ ] Return structured data for context integrator
+- [x] Extract commit hash, message, author, timestamp
+- [x] Extract diff excluding `journal/entries/**` files
+- [x] Handle merge commits (detect via parent count)
+- [x] Return structured data for context integrator
 
 ## Implementation Milestones
 
 ### Milestone 0: Research (Required First)
-- [ ] Review git diff-tree options and pathspec syntax
-- [ ] Research merge commit handling best practices
-- [ ] Check if there are better git libraries for Node.js (vs exec)
-- [ ] Verify v1 git commands still work with current git versions
-- [ ] Document findings in `docs/research/prd-2-git-collector.md`
+- [x] Review git diff-tree options and pathspec syntax
+- [x] Research merge commit handling best practices
+- [x] Check if there are better git libraries for Node.js (vs exec)
+- [x] Verify v1 git commands still work with current git versions
+- [x] Document findings in `docs/research/prd-2-git-collector.md`
 
 **Output**: Research document with git command patterns and any library recommendations
 
@@ -46,26 +46,26 @@ From PRD-32 (Journal File Filtering):
 
 ### Milestone 1: Basic Commit Data Extraction
 **Pre-requisite**: Read `docs/research/prd-2-git-collector.md` before starting
-- [ ] Create `src/collectors/git-collector.js`
-- [ ] Implement `getCommitData(commitRef)` function
-- [ ] Extract: hash, message, author, timestamp
-- [ ] Use `git show --no-patch --format=...`
+- [x] Create `src/collectors/git-collector.js`
+- [x] Implement `getCommitData(commitRef)` function
+- [x] Extract: hash, message, author, timestamp
+- [x] Use `git show --no-patch --format=...`
 
 ### Milestone 2: Diff Extraction with Filtering
-- [ ] Implement `getCommitDiff(commitRef)` function
-- [ ] Use `git diff-tree -p -m --first-parent` for merge support
-- [ ] Add pathspec `:!journal/entries/` to exclude journal files
-- [ ] Handle empty diffs gracefully
+- [x] Implement `getCommitDiff(commitRef)` function
+- [x] Use `git diff-tree -p -m --first-parent` for merge support
+- [x] Add pathspec `:!journal/entries/` to exclude journal files
+- [x] Handle empty diffs gracefully
 
 ### Milestone 3: Previous Commit Detection
-- [ ] Implement `getPreviousCommitTime(commitRef)` function
-- [ ] Used for time window calculation in Claude collector
-- [ ] Handle first commit edge case (no previous)
+- [x] Implement `getPreviousCommitTime(commitRef)` function
+- [x] Used for time window calculation in Claude collector
+- [x] Handle first commit edge case (no previous)
 
 ### Milestone 4: Merge Commit Detection
-- [ ] Implement `isMergeCommit(commitRef)` function
-- [ ] Use `git rev-list --parents -n 1` to count parents
-- [ ] Return `{ isMerge: boolean, parentCount: number }`
+- [x] Implement `isMergeCommit(commitRef)` function
+- [x] Use `git rev-list --parents -n 1` to count parents
+- [x] Return `{ isMerge: boolean, parentCount: number }`
 
 ## API Design
 
@@ -142,6 +142,14 @@ git rev-list --parents -n 1 HEAD
 - Claude collector uses UTC ISO format
 - Normalizing to UTC enables accurate time window comparison
 - Critical for international travel (v1 PRD-17 lesson)
+
+### DD-004: No External Git Library
+**Decision**: Use `child_process.execFile` directly instead of simple-git
+**Rationale**:
+- Keeps package lean (no added dependencies)
+- Simple use case - only 4 git commands needed
+- Easier for instrumentation agent to understand
+- v1 used exec directly
 
 ## Error Handling
 
