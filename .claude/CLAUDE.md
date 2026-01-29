@@ -67,6 +67,8 @@ Every PR must go through CodeRabbit review before merge. This is a hard requirem
 
 **Never skip CodeRabbit feedback** - but in YOLO mode, act on recommendations without waiting for user confirmation.
 
+**Note:** This repo has no CI pipeline. Don't wait for CI checks - just wait for CodeRabbit review, then merge.
+
 ## Package Distribution (Lean Packaging)
 
 This project will be distributed as an npm package. Avoid bloat:
