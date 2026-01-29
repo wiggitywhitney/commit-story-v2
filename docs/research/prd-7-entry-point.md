@@ -96,7 +96,7 @@ npx commit-story &
 
 **Key considerations:**
 - `&` runs in background - doesn't block user
-- `npx` ensures latest version
+- `npx` resolves the package at runtime (may use local install or cache)
 - Output goes to background (not visible)
 - Errors don't block git
 
@@ -213,11 +213,11 @@ const EXIT_SKIPPED = 2;  // Intentionally skipped (journal-only, merge)
 ### Check if in Git Repository
 
 ```javascript
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 
 function isGitRepository() {
   try {
-    execSync('git rev-parse --git-dir', { stdio: 'ignore' });
+    execFileSync('git', ['rev-parse', '--git-dir'], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -228,9 +228,18 @@ function isGitRepository() {
 ### Validate Commit Reference
 
 ```javascript
+/**
+ * Validate that a string is a safe git ref (no shell metacharacters)
+ */
+function isSafeGitRef(ref) {
+  if (!ref || typeof ref !== 'string') return false;
+  return /^[a-zA-Z0-9._\-\/~^]+$/.test(ref);
+}
+
 function isValidCommitRef(ref) {
+  if (!isSafeGitRef(ref)) return false;
   try {
-    execSync(`git rev-parse --verify ${ref}`, { stdio: 'ignore' });
+    execFileSync('git', ['rev-parse', '--verify', ref], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
