@@ -70,7 +70,6 @@ try {
   // Test collectChatMessages with a recent time window
   console.log('\n=== collectChatMessages() ===');
   const now = new Date();
-  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
   const chatData = await collectChatMessages(repoPath, now, oneDayAgo);
