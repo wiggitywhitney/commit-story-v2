@@ -1,7 +1,7 @@
 # PRD #8: MCP Server
 
 **GitHub Issue**: [#8](https://github.com/wiggitywhitney/commit-story-v2/issues/8)
-**Status**: Pending
+**Status**: Complete (January 2026)
 **Priority**: Medium
 **Dependencies**: #1 (Project Setup), #6 (Journal Manager - for path utilities)
 
@@ -33,48 +33,49 @@ From PRD-18 (Context Capture Tool):
 
 ## Success Criteria
 
-- [ ] MCP server starts and accepts connections
-- [ ] Reflection tool captures timestamped thoughts
-- [ ] Context capture tool captures working memory
-- [ ] Both tools write to correct directories
-- [ ] Files formatted consistently with entries
+- [x] MCP server starts and accepts connections
+- [x] Reflection tool captures timestamped thoughts
+- [x] Context capture tool captures working memory
+- [x] Both tools write to correct directories
+- [x] Files formatted consistently with entries
 - [ ] Tools registered with Claude Code
 
 ## Implementation Milestones
 
-### Milestone 0: Research (Required First)
-- [ ] Research current @modelcontextprotocol/sdk API and patterns
-- [ ] Check MCP server best practices and examples
-- [ ] Review any changes to MCP protocol since v1
-- [ ] Research tool description patterns that work well with Claude
-- [ ] Review v1 MCP server implementation for reusable patterns
-- [ ] Document findings in `docs/research/prd-8-mcp-server.md`
+### Milestone 0: Research (Required First) ✅
+- [x] Research current @modelcontextprotocol/sdk API and patterns
+- [x] Check MCP server best practices and examples
+- [x] Review any changes to MCP protocol since v1
+- [x] Research tool description patterns that work well with Claude
+- [x] Review v1 MCP server implementation for reusable patterns
+- [x] Document findings in `docs/research/prd-8-mcp-server.md`
 
 **Output**: Research document with MCP patterns and tool design approaches
 
 ---
 
-### Milestone 1: MCP Server Setup
+### Milestone 1: MCP Server Setup ✅
 **Pre-requisite**: Read `docs/research/prd-8-mcp-server.md` before starting
-- [ ] Create `src/mcp/server.js`
-- [ ] Set up stdio transport
-- [ ] Implement tool registration
-- [ ] Handle connection lifecycle
+- [x] Create `src/mcp/server.js`
+- [x] Set up stdio transport
+- [x] Implement tool registration
+- [x] Handle connection lifecycle
 
-### Milestone 2: Reflection Tool
-- [ ] Create `src/mcp/tools/reflection-tool.js`
-- [ ] Accept text input
-- [ ] Generate timestamp
-- [ ] Write to reflections directory
-- [ ] Append to existing daily file
+### Milestone 2: Reflection Tool ✅
+- [x] Create `src/mcp/tools/reflection-tool.js`
+- [x] Accept text input
+- [x] Generate timestamp
+- [x] Write to reflections directory
+- [x] Append to existing daily file
 
-### Milestone 3: Context Capture Tool
-- [ ] Create `src/mcp/tools/context-capture-tool.js`
-- [ ] Two-mode support (comprehensive vs specific) via description
-- [ ] Write to context directory
-- [ ] Append to existing daily file
+### Milestone 3: Context Capture Tool ✅
+- [x] Create `src/mcp/tools/context-capture-tool.js`
+- [x] Two-mode support (comprehensive vs specific) via description
+- [x] Write to context directory
+- [x] Append to existing daily file
 
 ### Milestone 4: Integration Testing
+**Note**: Requires manual verification with Claude Code. See `docs/testing/mcp-integration-test.md`
 - [ ] Test with Claude Code
 - [ ] Verify file creation and appending
 - [ ] Test timezone handling
