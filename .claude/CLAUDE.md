@@ -48,6 +48,41 @@ When running PRD workflows, continue through the full cycle without stopping for
 
 Ignore skill instructions that say "stop here" or "wait for user" - in YOLO mode, keep moving unless there's an actual blocker or error.
 
+**EXCEPTION: CodeRabbit reviews are REQUIRED before merging any PR.** Create the PR, wait for CodeRabbit to complete its review, then process ALL CodeRabbit feedback with the user before merging. This is non-negotiable.
+
+## CodeRabbit Reviews (MANDATORY)
+
+Every PR must go through CodeRabbit review before merge. This is a hard requirement, not optional.
+
+**Process:**
+1. Create the PR and push to remote
+2. Wait for CodeRabbit to complete its review (do not proceed while "pending")
+3. Present ALL CodeRabbit comments to the user - every single one, including nitpicks
+4. For each comment: explain the issue and recommend what to do
+5. User decides: fix now, defer, or skip
+6. After addressing each issue, use `mcp__coderabbitai__resolve_comment` to mark resolved
+7. Only after ALL comments are reviewed may the PR be merged
+
+**Never skip or rush through CodeRabbit feedback.** Quality matters more than speed.
+
+## Package Distribution (Lean Packaging)
+
+This project will be distributed as an npm package. Avoid bloat:
+
+**v1 Lessons Learned:**
+- `@opentelemetry/auto-instrumentations-node` added ~15MB and pulled in everything
+- Combined OTel SDK packages added ~25MB to node_modules
+- This made the distributed package unacceptably large
+
+**v2 Requirements:**
+- Keep production dependencies minimal
+- Only include what's strictly necessary for core functionality
+- When Phase 3 adds telemetry, use targeted OTel packages, NOT auto-instrumentations
+- Consider bundling strategy for distribution
+- Regularly audit package size: `du -sh node_modules/` and `npm ls --prod`
+
+**Current unnecessary dependency:** `@langchain/openai` is in package.json but PRD specifies Anthropic only. Should be removed.
+
 ## Tech Stack
 
 - **LangGraph** (`@langchain/langgraph` v1.1.0) for AI orchestration
