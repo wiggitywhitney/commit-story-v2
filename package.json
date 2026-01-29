@@ -6,6 +6,7 @@
   "main": "src/index.js",
   "bin": {
     "commit-story": "src/index.js",
+    "commit-story-mcp": "src/mcp/server.js",
     "commit-story-init": "scripts/install-hook.sh",
     "commit-story-remove": "scripts/uninstall-hook.sh"
   },
@@ -29,9 +30,11 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@langchain/langgraph": "^1.1.0",
-    "@langchain/core": "^1.1.15",
     "@langchain/anthropic": "^1.3.10",
-    "dotenv": "^17.0.0"
+    "@langchain/core": "^1.1.15",
+    "@langchain/langgraph": "^1.1.0",
+    "@modelcontextprotocol/sdk": "^1.25.3",
+    "dotenv": "^17.0.0",
+    "zod": "^4.3.6"
   }
 }
