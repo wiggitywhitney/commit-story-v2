@@ -21,6 +21,9 @@ npm-debug.log*
 .vscode/
 *.swp
 
+# Local MCP config
+.mcp.json
+
 # Journal output (user-specific)
 journal/
 
