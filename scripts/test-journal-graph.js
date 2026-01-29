@@ -144,7 +144,9 @@ index 0000000..1234567
 
     if (result.errors && result.errors.length > 0) {
       console.log('--- Errors ---');
-      result.errors.forEach((err) => console.log(`- ${err}`));
+      for (const err of result.errors) {
+        console.log(`- ${err}`);
+      }
       console.log('');
     }
 

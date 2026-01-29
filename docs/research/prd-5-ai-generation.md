@@ -103,7 +103,7 @@ const model = new ChatAnthropic({
 ### Key Parameters
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
+| --- | --- | --- |
 | `model` | string | Model identifier (e.g., "claude-3-5-haiku-latest") |
 | `temperature` | number | Randomness control (0 = deterministic) |
 | `maxTokens` | number | Maximum tokens to generate |
@@ -141,8 +141,9 @@ const response = await model.invoke([
 - **Output**: Up to 64,000 tokens (8x increase from Haiku 3.5)
 
 ### Pricing (Claude Developer Platform)
+
 | Token Type | Cost |
-|------------|------|
+| --- | --- |
 | Input | $1 per million tokens |
 | Output | $5 per million tokens |
 
@@ -314,7 +315,7 @@ If migrating from older LangGraph:
 ## 7. Decision Summary
 
 | Decision | Choice | Rationale |
-|----------|--------|-----------|
+| --- | --- | --- |
 | Model | claude-3-5-haiku-latest | Cost-effective, fast, sufficient quality |
 | State definition | Annotation API | Recommended, type-safe approach |
 | Error handling | Graceful degradation | Capture errors in state, don't crash |
