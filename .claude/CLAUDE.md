@@ -60,13 +60,12 @@ Every PR must go through CodeRabbit review before merge. This is a hard requirem
 1. Create the PR and push to remote
 2. Wait 5 minutes, then check for CodeRabbit review using `mcp__coderabbitai__get_coderabbit_reviews`
 3. If review not ready, wait another 2-3 minutes before checking again
-4. Present ALL CodeRabbit comments to the user - every single one, including nitpicks
-5. For each comment: explain the issue and recommend what to do
-6. User decides: fix now, defer, or skip
-7. After addressing each issue, use `mcp__coderabbitai__resolve_comment` to mark resolved
-8. Only after ALL comments are reviewed may the PR be merged
+4. For each CodeRabbit comment: explain the issue, give a recommendation, then **follow your own recommendation** (YOLO mode)
+5. After addressing each issue, use `mcp__coderabbitai__resolve_comment` to mark resolved
+6. Only stop for user input if something is truly ambiguous or has major architectural implications
+7. After ALL comments are addressed, merge the PR
 
-**Never skip or rush through CodeRabbit feedback.** Quality matters more than speed.
+**Never skip CodeRabbit feedback** - but in YOLO mode, act on recommendations without waiting for user confirmation.
 
 ## Package Distribution (Lean Packaging)
 
