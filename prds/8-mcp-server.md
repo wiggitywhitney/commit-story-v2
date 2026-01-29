@@ -75,6 +75,7 @@ From PRD-18 (Context Capture Tool):
 - [x] Append to existing daily file
 
 ### Milestone 4: Integration Testing
+**Note**: Requires manual verification with Claude Code. See `docs/testing/mcp-integration-test.md`
 - [ ] Test with Claude Code
 - [ ] Verify file creation and appending
 - [ ] Test timezone handling
