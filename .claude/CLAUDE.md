@@ -38,6 +38,55 @@ An automated engineering journal triggered by git commits. It:
    - Phase 3: Build the Telemetry Agent that reads the schema and instruments the code
 4. **Structured YOLO approach** - Use PRD skills for milestones and progress tracking, but run with auto-accept enabled
 
+## YOLO Workflow Mode
+
+When running PRD workflows, continue through the full cycle without stopping for confirmation:
+- `/prd-start` → automatically invoke `/prd-next`
+- After task completion → automatically invoke `/prd-update-progress`
+- After progress update → automatically invoke `/prd-next` for the next task
+- Continue until PRD is complete, then invoke `/prd-done`
+
+Ignore skill instructions that say "stop here" or "wait for user" - in YOLO mode, keep moving unless there's an actual blocker or error.
+
+**EXCEPTION: CodeRabbit reviews are REQUIRED before merging any PR.** Create the PR, wait for CodeRabbit to complete its review, then process ALL CodeRabbit feedback with the user before merging. This is non-negotiable.
+
+## CodeRabbit Reviews (MANDATORY)
+
+Every PR must go through CodeRabbit review before merge. This is a hard requirement, not optional.
+
+**Timing:** CodeRabbit reviews take ~5 minutes to complete. After creating a PR, wait at least 5 minutes before checking for the review. Do NOT poll every 30 seconds - that's wasteful and impatient.
+
+**Process:**
+1. Create the PR and push to remote
+2. Wait 5 minutes, then check for CodeRabbit review using `mcp__coderabbitai__get_coderabbit_reviews`
+3. If review not ready, wait another 2-3 minutes before checking again
+4. For each CodeRabbit comment: explain the issue, give a recommendation, then **follow your own recommendation** (YOLO mode)
+5. After addressing each issue, use `mcp__coderabbitai__resolve_comment` to mark resolved
+6. Only stop for user input if something is truly ambiguous or has major architectural implications
+7. After ALL comments are addressed, merge the PR
+
+**Never skip CodeRabbit feedback** - but in YOLO mode, act on recommendations without waiting for user confirmation.
+
+**Note:** This repo has no CI pipeline. Don't wait for CI checks - just wait for CodeRabbit review, then merge.
+
+## Package Distribution (Lean Packaging)
+
+This project will be distributed as an npm package. Avoid bloat:
+
+**v1 Lessons Learned:**
+- `@opentelemetry/auto-instrumentations-node` added ~15MB and pulled in everything
+- Combined OTel SDK packages added ~25MB to node_modules
+- This made the distributed package unacceptably large
+
+**v2 Requirements:**
+- Keep production dependencies minimal
+- Only include what's strictly necessary for core functionality
+- When Phase 3 adds telemetry, use targeted OTel packages, NOT auto-instrumentations
+- Consider bundling strategy for distribution
+- Regularly audit package size: `du -sh node_modules/` and `npm ls --prod`
+
+**Current unnecessary dependency:** `@langchain/openai` is in package.json but PRD specifies Anthropic only. Should be removed.
+
 ## Tech Stack
 
 - **LangGraph** (`@langchain/langgraph` v1.1.0) for AI orchestration

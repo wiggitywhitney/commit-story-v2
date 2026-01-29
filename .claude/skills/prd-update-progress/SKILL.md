@@ -2,7 +2,6 @@
 name: prd-update-progress
 description: Update PRD progress based on git commits and code changes, enhanced by conversation context
 category: project-management
-disable-model-invocation: true
 ---
 
 # PRD Update Progress Slash Command
