@@ -15,11 +15,11 @@
  *   2 - Skipped (journal-only commit, empty merge)
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { gatherContextForCommit } from './integrators/context-integrator.js';
 import { generateJournalSections } from './generators/journal-graph.js';
 import { saveJournalEntry, discoverReflections } from './managers/journal-manager.js';
-import { isJournalEntriesOnlyCommit, isMergeCommit, getChangedFiles } from './utils/commit-analyzer.js';
+import { isJournalEntriesOnlyCommit, isMergeCommit, shouldSkipMergeCommit, isSafeGitRef } from './utils/commit-analyzer.js';
 
 /** Exit codes */
 const EXIT_SUCCESS = 0;
@@ -100,7 +100,7 @@ Exit codes:
  */
 function isGitRepository() {
   try {
-    execSync('git rev-parse --git-dir', { stdio: 'ignore' });
+    execFileSync('git', ['rev-parse', '--git-dir'], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -113,8 +113,11 @@ function isGitRepository() {
  * @returns {boolean}
  */
 function isValidCommitRef(ref) {
+  if (!isSafeGitRef(ref)) {
+    return false;
+  }
   try {
-    execSync(`git rev-parse --verify ${ref}`, { stdio: 'ignore' });
+    execFileSync('git', ['rev-parse', '--verify', ref], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -142,10 +145,16 @@ function validateEnvironment() {
  * @returns {Date|null}
  */
 function getPreviousCommitTime(commitRef) {
+  if (!isSafeGitRef(commitRef)) {
+    const fallback = new Date();
+    fallback.setHours(fallback.getHours() - 24);
+    return fallback;
+  }
   try {
     // Get the commit before the current one
-    const output = execSync(`git log -1 --format=%cI ${commitRef}~1 2>/dev/null`, {
+    const output = execFileSync('git', ['log', '-1', '--format=%cI', `${commitRef}~1`], {
       encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'ignore'],
     });
     return new Date(output.trim());
   } catch {

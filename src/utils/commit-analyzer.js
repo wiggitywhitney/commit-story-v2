@@ -5,7 +5,22 @@
  * Checks for journal-only commits and merge commits.
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+
+/**
+ * Validate that a string is a safe git ref (no shell metacharacters)
+ * Prevents command injection attacks from untrusted input.
+ * @param {string} ref - Reference to validate
+ * @returns {boolean} True if ref is safe to use in git commands
+ */
+export function isSafeGitRef(ref) {
+  if (!ref || typeof ref !== 'string') {
+    return false;
+  }
+  // Allow only alphanumeric, dash, underscore, dot, slash, tilde, caret
+  // This covers: HEAD, branch names, tags, SHA hashes, HEAD~1, HEAD^2, etc.
+  return /^[a-zA-Z0-9._\-\/~^]+$/.test(ref);
+}
 
 /**
  * Get list of files changed in a commit
@@ -13,8 +28,11 @@ import { execSync } from 'node:child_process';
  * @returns {string[]} Array of file paths
  */
 export function getChangedFiles(commitRef) {
+  if (!isSafeGitRef(commitRef)) {
+    return [];
+  }
   try {
-    const output = execSync(`git diff-tree --no-commit-id --name-only -r ${commitRef}`, {
+    const output = execFileSync('git', ['diff-tree', '--no-commit-id', '--name-only', '-r', commitRef], {
       encoding: 'utf-8',
     });
     return output.trim().split('\n').filter(Boolean);
@@ -52,9 +70,12 @@ export function isJournalEntriesOnlyCommit(commitRef) {
  * @returns {{ isMerge: boolean, parentCount: number }}
  */
 export function isMergeCommit(commitRef) {
+  if (!isSafeGitRef(commitRef)) {
+    return { isMerge: false, parentCount: 1 };
+  }
   try {
     // Get commit object and count parent lines
-    const output = execSync(`git cat-file -p ${commitRef}`, { encoding: 'utf-8' });
+    const output = execFileSync('git', ['cat-file', '-p', commitRef], { encoding: 'utf-8' });
     const parentLines = output.split('\n').filter((line) => line.startsWith('parent '));
     const parentCount = parentLines.length;
 
@@ -107,10 +128,13 @@ export function shouldSkipMergeCommit(commitRef, context) {
  * @returns {Object} Commit metadata
  */
 export function getCommitMetadata(commitRef) {
+  if (!isSafeGitRef(commitRef)) {
+    throw new Error(`Invalid commit reference: ${commitRef}`);
+  }
   try {
     // Get formatted commit info
     const format = '%H%n%h%n%s%n%an%n%ae%n%cI';
-    const output = execSync(`git log -1 --format="${format}" ${commitRef}`, {
+    const output = execFileSync('git', ['log', '-1', `--format=${format}`, commitRef], {
       encoding: 'utf-8',
     });
 
