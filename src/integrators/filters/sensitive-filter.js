@@ -106,7 +106,7 @@ const EMAIL_PATTERN = {
  */
 export function redactSensitiveData(text, options = {}) {
   if (!text) {
-    return { text: '', redactions: [] };
+    return { text: '', redactions: [], redactionCount: 0 };
   }
 
   const { redactEmails = false, placeholder = '[REDACTED]' } = options;

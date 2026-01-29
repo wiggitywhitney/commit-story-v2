@@ -19,14 +19,15 @@ export function estimateTokens(text) {
 
 /**
  * Format messages for token estimation
+ * Matches the actual prompt format in context-integrator.js
  * @param {object[]} messages - Filtered messages
  * @returns {string} Formatted message text
  */
 function formatMessagesForEstimation(messages) {
   return messages
     .map((m) => {
-      const role = m.type === 'user' ? 'Human' : 'Assistant';
-      return `${role}: ${m.content}`;
+      const role = m.type === 'user' ? '**Human**' : '**Assistant**';
+      return `${role}:\n${m.content}`;
     })
     .join('\n\n');
 }
@@ -67,12 +68,13 @@ export function truncateDiff(diff, maxTokens) {
 
   // Add truncation indicator
   const truncationMessage = `\n\n[DIFF TRUNCATED - Original: ${originalTokens} tokens, Shown: ~${estimateTokens(finalDiff)} tokens]`;
+  const finalDiffWithMessage = finalDiff + truncationMessage;
 
   return {
-    diff: finalDiff + truncationMessage,
+    diff: finalDiffWithMessage,
     truncated: true,
     originalTokens,
-    shownTokens: estimateTokens(finalDiff),
+    shownTokens: estimateTokens(finalDiffWithMessage),
   };
 }
 
@@ -171,9 +173,25 @@ export function applyTokenBudget(context, options = {}) {
   }
 
   // 4. Calculate final token estimate
-  const diffTokens = estimateTokens(diffResult.diff);
-  const chatTokens = estimateTokens(formatMessagesForEstimation(messageResult.messages));
-  result.metadata.tokenEstimate = commitMetaTokens + diffTokens + chatTokens;
+  let diffTokens = estimateTokens(diffResult.diff);
+  let chatTokens = estimateTokens(formatMessagesForEstimation(messageResult.messages));
+  let tokenEstimate = commitMetaTokens + diffTokens + chatTokens;
+
+  // 5. Enforce totalBudget - if still over, truncate messages further
+  if (tokenEstimate > totalBudget && result.chat.messages.length > 1) {
+    const remainingBudget = totalBudget - commitMetaTokens - diffTokens;
+    if (remainingBudget > 0) {
+      const furtherTruncation = truncateMessages(result.chat.messages, remainingBudget);
+      result.chat.messages = furtherTruncation.messages;
+      result.metadata.tokenBudget.messagesTruncated = true;
+      result.metadata.tokenBudget.messagesOriginalCount = messageResult.originalCount;
+      result.metadata.tokenBudget.messagesPreservedCount = furtherTruncation.messages.length;
+      chatTokens = estimateTokens(formatMessagesForEstimation(furtherTruncation.messages));
+      tokenEstimate = commitMetaTokens + diffTokens + chatTokens;
+    }
+  }
+
+  result.metadata.tokenEstimate = tokenEstimate;
 
   return result;
 }

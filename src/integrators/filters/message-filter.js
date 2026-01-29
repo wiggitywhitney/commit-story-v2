@@ -40,13 +40,12 @@ function shouldFilterMessage(message) {
     const hasToolResult = content.some((c) => c.type === 'tool_result');
 
     // EXCEPTION: Preserve journal_capture_context tool calls (per v1 DD-014)
-    if (hasToolUse) {
-      const isContextCapture = content.some(
-        (c) => c.type === 'tool_use' && c.name === 'journal_capture_context'
-      );
-      if (!isContextCapture) {
-        return true;
-      }
+    const isContextCapture = hasToolUse && content.some(
+      (c) => c.type === 'tool_use' && c.name === 'journal_capture_context'
+    );
+
+    if (hasToolUse && !isContextCapture) {
+      return true;
     }
 
     // Always filter tool results
@@ -55,8 +54,9 @@ function shouldFilterMessage(message) {
     }
 
     // Check if there's any meaningful text content
+    // Context captures are preserved even without text (DD-014)
     const hasText = content.some((c) => c.type === 'text' && c.text?.trim());
-    if (!hasText) {
+    if (!hasText && !isContextCapture) {
       return true;
     }
   }
