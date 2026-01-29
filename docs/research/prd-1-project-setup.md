@@ -175,16 +175,12 @@ const __dirname = dirname(__filename);
 
 ## 5. Secrets Management
 
-### PRD vs Reality
-
-The PRD mentions "vals + dotenv" but the project environment uses **teller** (per global CLAUDE.md).
-
-### Recommended Approach: teller + dotenv
+### Approach: vals + dotenv
 
 **Development (local)**:
-- Use `teller` to inject secrets from GCP Secret Manager
-- Command: `teller run -- /opt/homebrew/bin/node src/index.js`
-- Note: `teller run` requires full paths to executables
+- Use `vals` to inject secrets from GCP Secret Manager
+- Command: `vals exec -f .vals.yaml -- node scripts/test-connection.js`
+- Or export to shell: `eval $(vals env -f .vals.yaml)`
 
 **Distribution (users)**:
 - Use `dotenv` to load from `.env` file

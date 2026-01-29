@@ -1,7 +1,7 @@
 # PRD #1: Project Setup
 
 **GitHub Issue**: [#1](https://github.com/wiggitywhitney/commit-story-v2/issues/1)
-**Status**: In Progress
+**Status**: Complete
 **Priority**: High
 **Dependencies**: None
 
@@ -29,11 +29,11 @@ Initialize a Node.js ES modules project with:
 
 ## Success Criteria
 
-- [ ] `npm install` completes without errors
-- [ ] Basic LangChain/Anthropic connection test passes
-- [ ] Project structure created with all directories
-- [ ] Package.json configured for both dev and distribution
-- [ ] vals secrets integration working
+- [x] `npm install` completes without errors
+- [x] Basic LangChain/Anthropic connection test passes
+- [x] Project structure created with all directories
+- [x] Package.json configured for both dev and distribution
+- [x] vals secrets integration working
 
 ## Implementation Milestones
 
@@ -50,31 +50,31 @@ Initialize a Node.js ES modules project with:
 
 ### Milestone 1: Initialize Project
 **Pre-requisite**: Read `docs/research/prd-1-project-setup.md` before starting
-- [ ] Create package.json with ES modules configuration
-- [ ] Add core dependencies (langchain, langgraph, anthropic)
-- [ ] Add dev dependencies (dotenv)
-- [ ] Configure engines (Node 18+)
+- [x] Create package.json with ES modules configuration
+- [x] Add core dependencies (langchain, langgraph, anthropic)
+- [x] Add dev dependencies (dotenv)
+- [x] Configure engines (Node 18+)
 
 ### Milestone 2: Create Directory Structure
-- [ ] `src/` - Source code root
-- [ ] `src/collectors/` - Git and Claude collectors
-- [ ] `src/integrators/` - Context integration
-- [ ] `src/generators/` - AI generation (LangGraph)
-- [ ] `src/managers/` - Journal file management
-- [ ] `src/mcp/` - MCP server and tools
-- [ ] `src/utils/` - Shared utilities
-- [ ] `scripts/` - Hook installation scripts
-- [ ] `journal/` - Output directory (gitignored)
+- [x] `src/` - Source code root
+- [x] `src/collectors/` - Git and Claude collectors
+- [x] `src/integrators/` - Context integration
+- [x] `src/generators/` - AI generation (LangGraph)
+- [x] `src/managers/` - Journal file management
+- [x] `src/mcp/` - MCP server and tools
+- [x] `src/utils/` - Shared utilities
+- [x] `scripts/` - Hook installation scripts
+- [x] `journal/` - Output directory (gitignored)
 
 ### Milestone 3: Configuration Setup
-- [ ] Create `.env.example` with required variables
-- [ ] Verify vals integration with `ANTHROPIC_API_KEY`
-- [ ] Create basic config loader utility
+- [x] Create `.env.example` with required variables
+- [x] Verify vals integration with `ANTHROPIC_API_KEY`
+- [x] Create basic config loader utility
 
 ### Milestone 4: Verify AI Connection
-- [ ] Create simple test script that calls Claude Haiku
-- [ ] Verify LangChain abstraction works
-- [ ] Document model configuration
+- [x] Create simple test script that calls Claude Haiku
+- [x] Verify LangChain abstraction works
+- [x] Document model configuration
 
 ## Package.json Structure
 
