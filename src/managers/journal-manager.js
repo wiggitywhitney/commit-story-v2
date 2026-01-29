@@ -12,6 +12,7 @@ import {
   getReflectionsDirectory,
   ensureDirectory,
   parseDateFromFilename,
+  getYearMonth,
 } from '../utils/journal-paths.js';
 
 /** Separator between journal entries */
@@ -246,8 +247,8 @@ export async function discoverReflections(startTime, endTime, basePath = '.') {
   const reflections = [];
 
   // Get all year-month directories that could contain relevant reflections
-  const startYearMonth = getYearMonthFromDate(startTime);
-  const endYearMonth = getYearMonthFromDate(endTime);
+  const startYearMonth = getYearMonth(startTime);
+  const endYearMonth = getYearMonth(endTime);
   const yearMonths = getYearMonthRange(startYearMonth, endYearMonth);
 
   for (const yearMonth of yearMonths) {
@@ -310,16 +311,6 @@ export async function discoverReflections(startTime, endTime, basePath = '.') {
   return reflections;
 }
 
-/**
- * Get YYYY-MM string from Date
- * @param {Date} date - Date object
- * @returns {string} YYYY-MM string
- */
-function getYearMonthFromDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  return `${year}-${month}`;
-}
 
 /**
  * Get all year-months between start and end (inclusive)

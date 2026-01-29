@@ -4,7 +4,7 @@
  * Run with: node scripts/test-journal-manager.js
  */
 
-import { mkdir, rm, readFile } from 'node:fs/promises';
+import { mkdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   formatJournalEntry,
@@ -138,7 +138,6 @@ This one should be outside the time window and not discovered.
 ═══════════════════════════════════════
 `;
 
-  const { writeFile } = await import('node:fs/promises');
   await writeFile(reflectionPath, testReflectionContent, 'utf-8');
   console.log('Created test reflection file at:', reflectionPath);
 

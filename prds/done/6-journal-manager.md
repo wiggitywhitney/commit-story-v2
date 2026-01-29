@@ -183,6 +183,16 @@ journal/
 - Standard behavior for file writers
 - Directories are cheap
 
+### DD-005: Local Timezone Assumption for Phase 1
+**Decision**: Reflection parsing assumes consistent local timezone
+**Rationale**:
+- JavaScript cannot reliably parse timezone abbreviations (CDT, EST are ambiguous)
+- Full timezone-aware parsing would require ISO 8601 offsets or IANA zone names
+- For Phase 1 (single user, typically same machine), local timezone is sufficient
+- Future enhancement: store ISO 8601 timestamps in reflection files for true cross-timezone support
+
+**Known Limitation**: If reflections are written in one timezone and discovery runs from a different timezone, time window filtering may be off by the timezone difference.
+
 ## Reflection Parsing
 
 Reflections use same format as entries:
