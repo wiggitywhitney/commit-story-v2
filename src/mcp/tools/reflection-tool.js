@@ -48,7 +48,7 @@ function formatTimestamp(date) {
  */
 function formatReflectionEntry(text, date) {
   const timestamp = formatTimestamp(date);
-  return `## ${timestamp} - Manual Reflection
+  return `## ${timestamp}
 
 ${text}
 
@@ -83,9 +83,9 @@ async function saveReflection(text) {
 export function registerReflectionTool(server) {
   server.tool(
     'journal_add_reflection',
-    'Capture a timestamped reflection or insight during development',
+    'Add a timestamped reflection to the development journal. IMPORTANT: Pass the reflection text exactly as provided by the user, verbatim, without any AI interpretation, elaboration, or additions.',
     {
-      text: z.string().describe('The reflection or insight to capture'),
+      text: z.string().describe('The reflection text, verbatim from the user'),
     },
     async ({ text }) => {
       try {
