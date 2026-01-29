@@ -13,9 +13,11 @@ const execFileAsync = promisify(execFile);
 /**
  * Run a git command and return stdout
  * @param {string[]} args - Git command arguments
+ * @param {object} options - Options
+ * @param {string} options.commitRef - Commit ref for error messages (when last arg is a pathspec)
  * @returns {Promise<string>} - Command output
  */
-async function runGit(args) {
+async function runGit(args, { commitRef } = {}) {
   try {
     const { stdout } = await execFileAsync('git', args, {
       maxBuffer: 10 * 1024 * 1024, // 10MB for large diffs
@@ -27,7 +29,8 @@ async function runGit(args) {
         throw new Error('Not a git repository');
       }
       if (error.stderr?.includes('unknown revision')) {
-        throw new Error(`Invalid commit reference: ${args[args.length - 1]}`);
+        const ref = commitRef ?? args[args.length - 1];
+        throw new Error(`Invalid commit reference: ${ref}`);
       }
     }
     throw error;
@@ -73,16 +76,19 @@ async function getCommitMetadata(commitRef = 'HEAD') {
  * @returns {Promise<string>} - Diff content
  */
 async function getCommitDiff(commitRef = 'HEAD') {
-  const output = await runGit([
-    'diff-tree',
-    '-p',           // Generate patch
-    '-m',           // Show diff for merges
-    '--first-parent', // For merges, diff against first parent
-    commitRef,
-    '--',
-    '.',
-    ':!journal/entries/', // Exclude journal entries
-  ]);
+  const output = await runGit(
+    [
+      'diff-tree',
+      '-p',           // Generate patch
+      '-m',           // Show diff for merges
+      '--first-parent', // For merges, diff against first parent
+      commitRef,
+      '--',
+      '.',
+      ':!journal/entries/', // Exclude journal entries
+    ],
+    { commitRef }
+  );
 
   // First line is commit hash, rest is diff
   const lines = output.split('\n');
