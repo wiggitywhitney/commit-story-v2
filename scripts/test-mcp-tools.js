@@ -54,9 +54,13 @@ const testDate = new Date('2026-01-29T12:00:00');
 const reflectionPath = getReflectionsPath(testDate);
 const contextPath = getContextPath(testDate);
 
+// Use path.join for platform-safe expected paths
+const expectedReflectionPath = join('journal', 'reflections', '2026-01', '2026-01-29.md');
+const expectedContextPath = join('journal', 'context', '2026-01', '2026-01-29.md');
+
 console.log('Reflection path:', reflectionPath);
-console.log('Expected: journal/reflections/2026-01/2026-01-29.md');
-console.log('Match:', reflectionPath === 'journal/reflections/2026-01/2026-01-29.md' ? '✅' : '❌');
+console.log('Expected:', expectedReflectionPath);
+console.log('Match:', reflectionPath === expectedReflectionPath ? '✅' : '❌');
 
 console.log('');
 
@@ -66,8 +70,8 @@ console.log('');
 
 console.log('=== Test 2: Context Tool ===');
 console.log('Context path:', contextPath);
-console.log('Expected: journal/context/2026-01/2026-01-29.md');
-console.log('Match:', contextPath === 'journal/context/2026-01/2026-01-29.md' ? '✅' : '❌');
+console.log('Expected:', expectedContextPath);
+console.log('Match:', contextPath === expectedContextPath ? '✅' : '❌');
 
 console.log('');
 

@@ -13,7 +13,7 @@ This document covers the @modelcontextprotocol/sdk API patterns for building MCP
 ### Current Version
 - **SDK Version**: 1.25.3 (latest stable)
 - **Status**: v1.x is recommended for production; v2 expected Q1 2026
-- **Required Peer Dependency**: `zod` for schema validation (v3.25+)
+- **Required Peer Dependency**: `zod` for schema validation (v3.25+ or v4.x)
 
 ### Installation
 ```bash
@@ -70,11 +70,11 @@ console.error("Server started");
 
 ## 3. Tool Registration Pattern
 
-### Using server.registerTool()
+### Using server.tool()
 ```javascript
 import { z } from "zod";
 
-server.registerTool(
+server.tool(
   "tool_name",
   {
     description: "Description of what the tool does",
@@ -114,7 +114,7 @@ Tools must return a specific format:
 
 ### Error Handling in Tools
 ```javascript
-server.registerTool(
+server.tool(
   "example_tool",
   { description: "...", inputSchema: { ... } },
   async (params) => {
@@ -180,7 +180,7 @@ inputSchema: {
 Based on PRD requirements and SDK patterns:
 
 ```javascript
-server.registerTool(
+server.tool(
   "journal_add_reflection",
   {
     description: "Capture a timestamped reflection or insight during development",
@@ -205,7 +205,7 @@ server.registerTool(
 
 ### Context Capture Tool
 ```javascript
-server.registerTool(
+server.tool(
   "journal_capture_context",
   {
     description:
