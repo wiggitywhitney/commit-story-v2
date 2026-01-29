@@ -38,6 +38,16 @@ An automated engineering journal triggered by git commits. It:
    - Phase 3: Build the Telemetry Agent that reads the schema and instruments the code
 4. **Structured YOLO approach** - Use PRD skills for milestones and progress tracking, but run with auto-accept enabled
 
+## YOLO Workflow Mode
+
+When running PRD workflows, continue through the full cycle without stopping for confirmation:
+- `/prd-start` → automatically invoke `/prd-next`
+- After task completion → automatically invoke `/prd-update-progress`
+- After progress update → automatically invoke `/prd-next` for the next task
+- Continue until PRD is complete, then invoke `/prd-done`
+
+Ignore skill instructions that say "stop here" or "wait for user" - in YOLO mode, keep moving unless there's an actual blocker or error.
+
 ## Tech Stack
 
 - **LangGraph** (`@langchain/langgraph` v1.1.0) for AI orchestration
