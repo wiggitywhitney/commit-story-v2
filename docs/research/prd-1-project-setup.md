@@ -227,7 +227,7 @@ if (!config.anthropicApiKey) {
 
 ### Milestone 2: Directory Structure
 Create these directories:
-```
+```text
 src/
 ├── collectors/      # git-collector.js, claude-collector.js
 ├── integrators/     # context-integrator.js
