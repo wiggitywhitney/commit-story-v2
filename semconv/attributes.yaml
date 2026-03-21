@@ -1,0 +1,263 @@
+# Commit Story Attribute Definitions
+# Custom attributes for gaps not covered by OTel semantic conventions
+
+groups:
+  # ==========================================================================
+  # COMMIT ATTRIBUTES
+  # VCS semconvs cover branch/revision but NOT commit metadata
+  # ==========================================================================
+  - id: registry.commit_story.commit
+    type: attribute_group
+    display_name: Commit Attributes
+    brief: Attributes describing git commit data collected by commit-story
+    attributes:
+      # Use OTel VCS for branch and revision
+      - ref: vcs.ref.head.name
+        brief: The git branch name
+      - ref: vcs.ref.head.revision
+        brief: The full commit SHA hash
+
+      # Custom attributes for commit metadata (not in OTel VCS)
+      - id: commit_story.commit.message
+        type: string
+        stability: development
+        brief: The first line of the commit message
+        examples:
+          - "feat: add user authentication"
+          - "fix: resolve memory leak in collector"
+
+      - id: commit_story.commit.author
+        type: string
+        stability: development
+        brief: The commit author name
+        examples:
+          - "Whitney Lee"
+
+      - id: commit_story.commit.timestamp
+        type: string
+        stability: development
+        brief: The commit timestamp in ISO 8601 format
+        examples:
+          - "2026-02-03T10:30:00Z"
+
+      - id: commit_story.commit.files_changed
+        type: int
+        stability: development
+        brief: Number of files changed in the commit
+        examples:
+          - 3
+          - 12
+
+  # ==========================================================================
+  # CONTEXT COLLECTION ATTRIBUTES
+  # No OTel semconvs exist for chat history collection
+  # ==========================================================================
+  - id: registry.commit_story.context
+    type: attribute_group
+    display_name: Context Collection Attributes
+    brief: Attributes for Claude Code session and context collection
+    attributes:
+      - id: commit_story.context.sessions_count
+        type: int
+        stability: development
+        brief: Number of Claude Code sessions found and processed
+        examples:
+          - 1
+          - 3
+
+      - id: commit_story.context.messages_count
+        type: int
+        stability: development
+        brief: Total number of messages collected from sessions
+        examples:
+          - 42
+          - 156
+
+      - id: commit_story.context.time_window_start
+        type: string
+        stability: development
+        brief: Start of the collection time window (ISO 8601)
+        examples:
+          - "2026-02-03T08:00:00Z"
+
+      - id: commit_story.context.time_window_end
+        type: string
+        stability: development
+        brief: End of the collection time window (ISO 8601)
+        examples:
+          - "2026-02-03T12:00:00Z"
+
+      - id: commit_story.context.source
+        type:
+          members:
+            - id: claude_code
+              value: claude_code
+              brief: Claude Code chat history from ~/.claude/projects/
+              stability: development
+            - id: git
+              value: git
+              brief: Git commit and diff data
+              stability: development
+            - id: mcp
+              value: mcp
+              brief: MCP tool context capture
+              stability: development
+        stability: development
+        brief: The source type of collected context
+
+  # ==========================================================================
+  # JOURNAL GENERATION ATTRIBUTES
+  # Application-specific, no OTel coverage
+  # ==========================================================================
+  - id: registry.commit_story.journal
+    type: attribute_group
+    display_name: Journal Attributes
+    brief: Attributes for journal entry generation and output
+    attributes:
+      - id: commit_story.journal.entry_date
+        type: string
+        stability: development
+        brief: The date of the journal entry (YYYY-MM-DD)
+        examples:
+          - "2026-02-03"
+
+      - id: commit_story.journal.file_path
+        type: string
+        stability: development
+        brief: Output file path for the journal entry
+        examples:
+          - "journal/entries/2026-02/2026-02-03.md"
+
+      - id: commit_story.journal.sections
+        type: string[]
+        stability: development
+        brief: List of sections generated in the journal entry
+        examples:
+          - ["summary", "dialogue", "technical_decisions"]
+
+      - id: commit_story.journal.quotes_count
+        type: int
+        stability: development
+        brief: Number of developer quotes extracted for the entry
+        examples:
+          - 5
+          - 12
+
+      - id: commit_story.journal.word_count
+        type: int
+        stability: development
+        brief: Total word count of the generated journal entry
+        examples:
+          - 450
+          - 1200
+
+  # ==========================================================================
+  # FILTERING ATTRIBUTES
+  # Application-specific, no OTel coverage
+  # ==========================================================================
+  - id: registry.commit_story.filter
+    type: attribute_group
+    display_name: Filter Attributes
+    brief: Attributes for context filtering operations
+    attributes:
+      - id: commit_story.filter.type
+        type:
+          members:
+            - id: token_budget
+              value: token_budget
+              brief: Filtering based on token limits
+              stability: development
+            - id: noise_removal
+              value: noise_removal
+              brief: Removing tool calls and system messages
+              stability: development
+            - id: sensitive_data
+              value: sensitive_data
+              brief: Redacting sensitive information
+              stability: development
+            - id: relevance
+              value: relevance
+              brief: Filtering by relevance to commit
+              stability: development
+        stability: development
+        brief: The type of filtering operation applied
+
+      - id: commit_story.filter.messages_before
+        type: int
+        stability: development
+        brief: Message count before filtering
+        examples:
+          - 156
+
+      - id: commit_story.filter.messages_after
+        type: int
+        stability: development
+        brief: Message count after filtering
+        examples:
+          - 42
+
+      - id: commit_story.filter.tokens_before
+        type: int
+        stability: development
+        brief: Token count before filtering
+        examples:
+          - 50000
+
+      - id: commit_story.filter.tokens_after
+        type: int
+        stability: development
+        brief: Token count after filtering
+        examples:
+          - 15000
+
+  # ==========================================================================
+  # AI GENERATION ATTRIBUTES
+  # Use OTel GenAI semconvs + custom extensions
+  # ==========================================================================
+  - id: registry.commit_story.ai
+    type: attribute_group
+    display_name: AI Generation Attributes
+    brief: Attributes for AI content generation, combining OTel GenAI and custom
+    attributes:
+      # OTel GenAI attributes
+      - ref: gen_ai.request.model
+        requirement_level: required
+      - ref: gen_ai.request.temperature
+        requirement_level: recommended
+      - ref: gen_ai.request.max_tokens
+        requirement_level: recommended
+      - ref: gen_ai.operation.name
+        requirement_level: required
+      - ref: gen_ai.response.model
+        requirement_level: recommended
+      - ref: gen_ai.response.id
+        requirement_level: recommended
+      - ref: gen_ai.usage.input_tokens
+        requirement_level: recommended
+      - ref: gen_ai.usage.output_tokens
+        requirement_level: recommended
+      - ref: gen_ai.provider.name
+        requirement_level: required
+
+      # Custom extension for journal-specific AI operations
+      - id: commit_story.ai.section_type
+        type:
+          members:
+            - id: summary
+              value: summary
+              brief: Daily summary section generation
+              stability: development
+            - id: dialogue
+              value: dialogue
+              brief: Developer dialogue extraction
+              stability: development
+            - id: technical_decisions
+              value: technical_decisions
+              brief: Technical decisions analysis
+              stability: development
+            - id: context_synthesis
+              value: context_synthesis
+              brief: Multi-source context synthesis
+              stability: development
+        stability: development
+        brief: The type of journal section being generated
