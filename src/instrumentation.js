@@ -41,12 +41,22 @@ const sdk = new NodeSDK({
 sdk.start();
 
 // Graceful shutdown — flush pending spans before exit
+let isShuttingDown = false;
+
 const shutdown = async () => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  process.exitCode = 0;
   try {
     await sdk.shutdown();
   } catch (err) {
     console.error('OTel SDK shutdown error:', err);
+    process.exitCode = 1;
   }
+
+  // Force exit if shutdown hangs (e.g., exporter can't reach collector)
+  setTimeout(() => process.exit(1), 30_000).unref();
 };
 
 process.on('SIGTERM', shutdown);

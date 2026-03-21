@@ -150,5 +150,13 @@ describe('instrumentation bootstrap', () => {
     it('registers SIGINT shutdown handler', () => {
       expect(processOnSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
     });
+
+    it('shutdown is idempotent (second call is a no-op)', async () => {
+      const sigTermHandler = processOnSpy.mock.calls.find(([event]) => event === 'SIGTERM')[1];
+      mockShutdown.mockClear();
+      await sigTermHandler();
+      await sigTermHandler();
+      expect(mockShutdown).toHaveBeenCalledTimes(1);
+    });
   });
 });
