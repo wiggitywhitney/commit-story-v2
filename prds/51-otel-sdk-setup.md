@@ -109,7 +109,7 @@ The agent is off by default for OTLP — the `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_
 
 - [x] **Update git hook for SDK loading** — Modify `scripts/install-hook.sh` and the post-commit hook template to include `--import <path-to-instrumentation.js>` so the SDK initializes before commit-story runs. Use the final path determined by the package distribution hygiene milestone — if the file moved out of `src/`, the `--import` path must match. (Updated per Decision 2: path depends on where file lands)
 
-- [ ] **End-to-end validation** — Start DD Agent, make a commit in any repo, verify traces appear in Datadog APM with correct service name, span hierarchy, and LangChain child spans.
+- [x] **End-to-end validation** — Start DD Agent, make a commit in any repo, verify traces appear in Datadog APM with correct service name, span hierarchy, and LangChain child spans.
 
 - [ ] **Remove sdk-node from peerDependencies in eval repo** — Clean up the eval repo's pre-existing scaffolding now that the real setup is on commit-story-v2 proper. Close issue commit-story-v2-eval#23.
 
