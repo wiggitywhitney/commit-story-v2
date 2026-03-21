@@ -101,7 +101,7 @@ The agent is off by default for OTLP — the `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_
 
 - [x] **Install OTel packages** — Add SDK, exporter, resource, semantic conventions, and auto-instrumentation packages to devDependencies. Add `@opentelemetry/api` to peerDependencies.
 
-- [ ] **Create instrumentation.js bootstrap** — NodeSDK with OTLPTraceExporter pointing to `http://localhost:4318`, resource attributes (service.name, service.version, deployment.environment), auto-instrumentation packages, and graceful shutdown handlers.
+- [x] **Create instrumentation.js bootstrap** — NodeSDK with OTLPTraceExporter pointing to `http://localhost:4318`, resource attributes (service.name, service.version, deployment.environment), auto-instrumentation packages, and graceful shutdown handlers.
 
 - [ ] **Datadog Agent setup/teardown scripts** — Docker-based DD Agent with OTLP enabled. `scripts/setup-dd-agent.sh` to start, `scripts/teardown-dd-agent.sh` to stop. DD API key via vals.
 
