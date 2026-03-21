@@ -127,6 +127,18 @@ The agent is off by default for OTLP — the `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_
 
 ---
 
+## Decision Log
+
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| 2026-03-21 | sdk-node in devDependencies, not peerDependencies | commit-story-v2 is a library. Libraries depend only on @opentelemetry/api (peerDependency). The SDK is a deployer concern. devDependencies keeps it available locally for dev/demo without distributing to consumers. The eval repo had it in peerDependencies as scaffolding — that was wrong and caused API-004 failures across 7 eval runs. |
+| 2026-03-21 | instrumentation.js must not ship in npm package | No `"files"` field or `.npmignore` exists, so everything in `src/` ships. instrumentation.js is SDK bootstrap code for local dev/demo, not library functionality. Either move out of `src/` or add a `"files"` whitelist. Verify with `npm pack --dry-run`. |
+| 2026-03-21 | DD Agent via Docker, not direct OTLP intake | Datadog's direct OTLP traces intake is Preview-only and requires CSM access. DD Agent OTLP ingestion is GA. Docker container is simplest for local dev — one command to start, one to stop. |
+| 2026-03-21 | HTTP (port 4318), not gRPC for OTLP export | HTTP is simpler, works everywhere, no extra dependencies. Both are config changes if we need to switch later. |
+| 2026-03-21 | This setup enables spiny-orb eval run-9 on the real repo | The eval repo (commit-story-v2-eval) PRD #9 depends on this PRD completing first. Run-9 will be the first evaluation against the real codebase instead of an eval fork, and the first time live Datadog traces are validated. |
+
+---
+
 ## Research References
 
 - [OTel Library Instrumentation Guidelines](https://opentelemetry.io/docs/concepts/instrumentation/libraries/) — "Libraries should only use the OpenTelemetry API"
