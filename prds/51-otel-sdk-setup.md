@@ -105,9 +105,9 @@ The agent is off by default for OTLP — the `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_
 
 - [x] **Datadog Agent setup/teardown scripts** — Docker-based DD Agent with OTLP enabled. `scripts/setup-dd-agent.sh` to start, `scripts/teardown-dd-agent.sh` to stop. DD API key via vals.
 
-- [ ] **Update git hook for SDK loading** — Modify `scripts/install-hook.sh` and the post-commit hook template to include `--import ./src/instrumentation.js` so the SDK initializes before commit-story runs.
+- [ ] **Package distribution hygiene** — Ensure OTel tooling does not bloat the npm package. No `"files"` field or `.npmignore` exists today, so everything in `src/` ships. Either: (a) add a `"files"` whitelist to package.json that excludes `instrumentation.js`, or (b) move `instrumentation.js` out of `src/` (e.g., `dev/instrumentation.js`) so it's naturally outside the distribution path. Verify with `npm pack --dry-run` that the tarball does not include instrumentation.js or any OTel SDK code. **This milestone must complete before the git hook milestone** so the final path is known. (Updated per Decision 2: instrumentation.js must not ship)
 
-- [ ] **Package distribution hygiene** — Ensure OTel tooling does not bloat the npm package. No `"files"` field or `.npmignore` exists today, so everything in `src/` ships. Either: (a) add a `"files"` whitelist to package.json that excludes `instrumentation.js`, or (b) move `instrumentation.js` out of `src/` (e.g., `dev/instrumentation.js`) so it's naturally outside the distribution path. Update the `--import` path in the git hook accordingly. Verify with `npm pack --dry-run` that the tarball does not include instrumentation.js or any OTel SDK code.
+- [ ] **Update git hook for SDK loading** — Modify `scripts/install-hook.sh` and the post-commit hook template to include `--import <path-to-instrumentation.js>` so the SDK initializes before commit-story runs. Use the final path determined by the package distribution hygiene milestone — if the file moved out of `src/`, the `--import` path must match. (Updated per Decision 2: path depends on where file lands)
 
 - [ ] **End-to-end validation** — Start DD Agent, make a commit in any repo, verify traces appear in Datadog APM with correct service name, span hierarchy, and LangChain child spans.
 
