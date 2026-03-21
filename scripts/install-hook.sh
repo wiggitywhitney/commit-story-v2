@@ -21,7 +21,12 @@ resolve_script_dir() {
 }
 
 SCRIPT_DIR="$(resolve_script_dir "$0")"
-INSTRUMENTATION_PATH="$(cd "$SCRIPT_DIR/../src" && pwd)/instrumentation.js"
+SRC_DIR="$SCRIPT_DIR/../src"
+if [[ -d "$SRC_DIR" ]]; then
+  INSTRUMENTATION_PATH="$(cd "$SRC_DIR" && pwd)/instrumentation.js"
+else
+  INSTRUMENTATION_PATH=""
+fi
 
 # Check if we're in a git repository
 if [[ ! -d ".git" ]]; then
@@ -37,8 +42,8 @@ if [[ -f "$HOOK_PATH" ]]; then
   echo "To avoid overwriting your existing hook, please add"
   echo "the following line to your post-commit hook manually:"
   echo ""
-  if [[ -f "$INSTRUMENTATION_PATH" ]]; then
-    echo "    NODE_OPTIONS=\"\${NODE_OPTIONS:+\$NODE_OPTIONS }--import $INSTRUMENTATION_PATH\" npx commit-story &"
+  if [[ -n "$INSTRUMENTATION_PATH" && -f "$INSTRUMENTATION_PATH" ]]; then
+    echo "    NODE_OPTIONS=\"\${NODE_OPTIONS:+\$NODE_OPTIONS }--import '$INSTRUMENTATION_PATH'\" npx commit-story &"
   else
     echo "    npx commit-story &"
   fi
@@ -47,8 +52,8 @@ if [[ -f "$HOOK_PATH" ]]; then
 fi
 
 # Build the hook command based on whether instrumentation.js exists (dev/linked mode)
-if [[ -f "$INSTRUMENTATION_PATH" ]]; then
-  HOOK_CMD="NODE_OPTIONS=\"\${NODE_OPTIONS:+\$NODE_OPTIONS }--import $INSTRUMENTATION_PATH\" npx commit-story &"
+if [[ -n "$INSTRUMENTATION_PATH" && -f "$INSTRUMENTATION_PATH" ]]; then
+  HOOK_CMD="NODE_OPTIONS=\"\${NODE_OPTIONS:+\$NODE_OPTIONS }--import '$INSTRUMENTATION_PATH'\" npx commit-story &"
 else
   HOOK_CMD="npx commit-story &"
 fi
@@ -70,7 +75,7 @@ echo "✅ Git hook installed successfully"
 echo "   Location: $HOOK_PATH"
 echo ""
 echo "Journal entries will be generated automatically after each commit."
-if [[ -f "$INSTRUMENTATION_PATH" ]]; then
+if [[ -n "$INSTRUMENTATION_PATH" && -f "$INSTRUMENTATION_PATH" ]]; then
   echo "   OTel SDK: enabled (--import instrumentation.js)"
 fi
 echo ""

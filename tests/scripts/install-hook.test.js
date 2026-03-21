@@ -49,7 +49,7 @@ describe('install-hook.sh', () => {
     execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
 
     const hookContent = readFileSync(join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf-8');
-    const match = hookContent.match(/--import\s+([^"&\s]+)/);
+    const match = hookContent.match(/--import\s+'?([^"&\s']+)'?/);
     expect(match).toBeTruthy();
     // Path should be absolute
     expect(match[1]).toMatch(/^\//);
