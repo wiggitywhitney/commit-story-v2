@@ -94,6 +94,8 @@ The agent is off by default for OTLP — the `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_
 8. LangChain LLM calls appear as child spans under the manual instrumentation spans
 9. Service name `commit-story` appears in Datadog APM service catalog
 10. Teardown script stops and removes the DD Agent container
+11. `spiny-orb.yaml` present with correct `schemaPath`, `sdkInitFile`, `dependencyStrategy` for spiny-orb to discover
+12. `semconv/` directory with `attributes.yaml` and `registry_manifest.yaml` defining the commit-story telemetry schema
 
 ---
 
@@ -112,6 +114,8 @@ The agent is off by default for OTLP — the `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_
 - [x] **End-to-end validation** — Start DD Agent, make a commit in any repo, verify traces appear in Datadog APM with correct service name, span hierarchy, and LangChain child spans.
 
 - [x] **Remove sdk-node from peerDependencies in eval repo** — Clean up the eval repo's pre-existing scaffolding now that the real setup is on commit-story-v2 proper. Close issue commit-story-v2-eval#23.
+
+- [ ] **Add spiny-orb prerequisites** — Spiny-orb requires two config artifacts to instrument a repo: (1) `spiny-orb.yaml` with `schemaPath`, `sdkInitFile`, and `dependencyStrategy` fields, and (2) a `semconv/` directory containing the OTel Weaver schema (`attributes.yaml` and `registry_manifest.yaml`). Copy both from the eval repo. Set `dependencyStrategy: peerDependencies` (library), `sdkInitFile: src/instrumentation.js` (matches PRD #51 milestone 2), `schemaPath: semconv`. The `semconv/` files define the commit-story telemetry schema (custom attributes for commits, context, journal, filtering, AI generation). Without these, spiny-orb cannot discover the schema or the SDK init file, and eval run-9 will fail immediately. (Added per Decision 6)
 
 ---
 
@@ -136,6 +140,7 @@ The agent is off by default for OTLP — the `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_
 | 2026-03-21 | DD Agent via Docker, not direct OTLP intake | Datadog's direct OTLP traces intake is Preview-only and requires CSM access. DD Agent OTLP ingestion is GA. Docker container is simplest for local dev — one command to start, one to stop. |
 | 2026-03-21 | HTTP (port 4318), not gRPC for OTLP export | HTTP is simpler, works everywhere, no extra dependencies. Both are config changes if we need to switch later. |
 | 2026-03-21 | This setup enables spiny-orb eval run-9 on the real repo | The eval repo (commit-story-v2-eval) PRD #9 depends on this PRD completing first. Run-9 will be the first evaluation against the real codebase instead of an eval fork, and the first time live Datadog traces are validated. |
+| 2026-03-21 | spiny-orb.yaml and semconv/ must be added to commit-story-v2 | Spiny-orb reads `spiny-orb.yaml` to discover `schemaPath`, `sdkInitFile`, and `dependencyStrategy`. It reads `semconv/` for the OTel Weaver schema (attribute definitions, registry manifest). The eval repo has both; commit-story-v2 proper does not. Without them, spiny-orb cannot instrument the repo. Copy from eval repo with `dependencyStrategy: peerDependencies` (library) and `sdkInitFile: src/instrumentation.js`. |
 
 ---
 
