@@ -65,7 +65,7 @@ docker run -d --name "$CONTAINER_NAME" \
   -e DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT=0.0.0.0:${OTLP_PORT} \
   -e DD_SITE=datadoghq.com \
   -p ${OTLP_PORT}:${OTLP_PORT} \
-  gcr.io/datadoghq/agent:latest >/dev/null
+  gcr.io/datadoghq/agent:7 >/dev/null
 
 echo "✅ DD Agent started"
 echo "   Container: ${CONTAINER_NAME}"

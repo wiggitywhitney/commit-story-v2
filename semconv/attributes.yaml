@@ -221,7 +221,7 @@ groups:
     attributes:
       # OTel GenAI attributes
       - ref: gen_ai.request.model
-        requirement_level: required
+        requirement_level: conditionally_required
       - ref: gen_ai.request.temperature
         requirement_level: recommended
       - ref: gen_ai.request.max_tokens
