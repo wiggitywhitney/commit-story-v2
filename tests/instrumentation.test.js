@@ -2,6 +2,10 @@
 // ABOUTME: Verifies SDK configuration, resource attributes, exporter, instrumentations, and shutdown
 
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
 
 // ---------------------------------------------------------------------------
 // Save and clear env vars that would override defaults under test
@@ -99,7 +103,7 @@ describe('instrumentation bootstrap', () => {
 
     it('sets service.version from package.json', () => {
       const callArgs = mockResourceFromAttributes.mock.calls[0][0];
-      expect(callArgs['service.version']).toBe('2.0.0-alpha.0');
+      expect(callArgs['service.version']).toBe(pkg.version);
     });
 
     it('sets deployment.environment', () => {

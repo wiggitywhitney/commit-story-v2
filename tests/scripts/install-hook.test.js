@@ -98,7 +98,7 @@ describe('install-hook.sh', () => {
 
     const hookContent = readFileSync(join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf-8');
     // Should use ${NODE_OPTIONS:+...} pattern to preserve existing options
-    expect(hookContent).toContain('NODE_OPTIONS');
+    expect(hookContent).toMatch(/\$\{NODE_OPTIONS:\+/);
   });
 });
 

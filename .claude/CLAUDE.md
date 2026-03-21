@@ -4,8 +4,9 @@ A complete rebuild of commit-story using modern tooling (LangGraph) with zero te
 
 ## Project Constraints
 
-- The app ships with NO instrumentation. Do not add telemetry — an AI instrumentation agent will add it in Phase 3.
-- **Build order**: Phase 1 (LangGraph rebuild, this repo) → Phase 2 (OTel Weaver schema) → Phase 3 (Telemetry Agent)
+- Production runtime ships with no application-level instrumentation by default. Do not add telemetry to library code — spiny-orb (the AI instrumentation agent) handles that in Phase 3.
+- Local/dev telemetry bootstrap (`src/instrumentation.js`, loaded via `--import`) is available for validation and demo workflows (PRD #51). This is SDK setup only — it does not add spans to library code.
+- **Build order**: Phase 1 (LangGraph rebuild, this repo) → Phase 2 (OTel Weaver schema) → Phase 3 (Telemetry Agent via spiny-orb)
 
 ## YOLO Workflow Mode
 

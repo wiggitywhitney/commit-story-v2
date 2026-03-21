@@ -2,7 +2,7 @@
 # ABOUTME: Starts a Datadog Agent Docker container with OTLP HTTP receiver on port 4318
 # ABOUTME: Injects DD_API_KEY via vals automatically — just run the script directly
 
-set -uo pipefail
+set -euo pipefail
 
 readonly CONTAINER_NAME="dd-agent"
 readonly OTLP_PORT=4318

@@ -2,13 +2,19 @@
 # ABOUTME: Stops and removes the Datadog Agent Docker container
 # ABOUTME: Counterpart to setup-dd-agent.sh — safe to run if container doesn't exist
 
-set -uo pipefail
+set -euo pipefail
 
 readonly CONTAINER_NAME="dd-agent"
 
 # Check Docker is available
 if ! command -v docker &>/dev/null; then
   echo "❌ Docker is not installed or not in PATH"
+  exit 1
+fi
+
+if ! docker info &>/dev/null; then
+  echo "❌ Docker daemon is not running"
+  echo "   Start Docker Desktop or the Docker daemon first."
   exit 1
 fi
 
