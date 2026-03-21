@@ -107,6 +107,8 @@ The agent is off by default for OTLP — the `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_
 
 - [ ] **Update git hook for SDK loading** — Modify `scripts/install-hook.sh` and the post-commit hook template to include `--import ./src/instrumentation.js` so the SDK initializes before commit-story runs.
 
+- [ ] **Package distribution hygiene** — Ensure OTel tooling does not bloat the npm package. No `"files"` field or `.npmignore` exists today, so everything in `src/` ships. Either: (a) add a `"files"` whitelist to package.json that excludes `instrumentation.js`, or (b) move `instrumentation.js` out of `src/` (e.g., `dev/instrumentation.js`) so it's naturally outside the distribution path. Update the `--import` path in the git hook accordingly. Verify with `npm pack --dry-run` that the tarball does not include instrumentation.js or any OTel SDK code.
+
 - [ ] **End-to-end validation** — Start DD Agent, make a commit in any repo, verify traces appear in Datadog APM with correct service name, span hierarchy, and LangChain child spans.
 
 - [ ] **Remove sdk-node from peerDependencies in eval repo** — Clean up the eval repo's pre-existing scaffolding now that the real setup is on commit-story-v2 proper. Close issue commit-story-v2-eval#23.
