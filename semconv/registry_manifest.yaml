@@ -1,0 +1,15 @@
+# Commit Story Telemetry Registry
+# OpenTelemetry Weaver schema for commit-story engineering journal conventions
+
+name: commit_story
+description: OpenTelemetry semantic conventions for the commit-story engineering journal
+semconv_version: 0.1.0
+
+# Base URL for schema files (reserved for future telemetry schema v2 support)
+schema_base_url: https://commit-story.dev/schemas/
+
+# Import official OTel semantic conventions
+# The [model] suffix specifies the subdirectory containing registry files
+dependencies:
+  - name: otel
+    registry_path: https://github.com/open-telemetry/semantic-conventions/archive/refs/tags/v1.37.0.zip[model]

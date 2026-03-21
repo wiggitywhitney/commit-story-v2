@@ -1,7 +1,7 @@
-#!/bin/bash
-# uninstall-hook.sh
+#!/usr/bin/env bash
+# ABOUTME: Removes the commit-story git post-commit hook
+# ABOUTME: Detects commit-story hooks (with or without OTel SDK loading) and safely removes them
 #
-# Removes the commit-story git post-commit hook.
 # Run from the root of a git repository.
 
 set -e
