@@ -66,6 +66,10 @@ vi.mock('@langchain/anthropic', () => ({
 }));
 ```
 
+## OTel SDK (PRD #51)
+
+- OTel JS SDK 2.x gotchas: @.claude/rules/otel-js-sdk-2x-gotchas.md
+
 ## Secrets Management
 
 This project uses vals for secrets. See `.vals.yaml` for available secrets.
