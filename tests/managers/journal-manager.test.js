@@ -1,3 +1,6 @@
+// ABOUTME: Tests for journal-manager — formatTimestamp, formatJournalEntry, and file I/O operations
+// ABOUTME: Covers timestamp formatting, entry structure, append behavior, and directory creation
+
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -47,8 +50,8 @@ describe('formatTimestamp', () => {
     const date = new Date('2026-02-21T10:15:32Z');
     const result = formatTimestamp(date);
 
-    // Should end with timezone (e.g., "CDT", "EST", "UTC")
-    expect(result).toMatch(/[A-Z]{2,5}$/);
+    // Should end with timezone (e.g., "CDT", "EST", "UTC", "GMT+1")
+    expect(result).toMatch(/[A-Z]{2,5}[+-]?\d*$/);
   });
 });
 
