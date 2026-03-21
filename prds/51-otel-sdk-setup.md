@@ -103,7 +103,7 @@ The agent is off by default for OTLP — the `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_
 
 - [x] **Create instrumentation.js bootstrap** — NodeSDK with OTLPTraceExporter pointing to `http://localhost:4318`, resource attributes (service.name, service.version, deployment.environment), auto-instrumentation packages, and graceful shutdown handlers.
 
-- [ ] **Datadog Agent setup/teardown scripts** — Docker-based DD Agent with OTLP enabled. `scripts/setup-dd-agent.sh` to start, `scripts/teardown-dd-agent.sh` to stop. DD API key via vals.
+- [x] **Datadog Agent setup/teardown scripts** — Docker-based DD Agent with OTLP enabled. `scripts/setup-dd-agent.sh` to start, `scripts/teardown-dd-agent.sh` to stop. DD API key via vals.
 
 - [ ] **Update git hook for SDK loading** — Modify `scripts/install-hook.sh` and the post-commit hook template to include `--import ./src/instrumentation.js` so the SDK initializes before commit-story runs.
 
