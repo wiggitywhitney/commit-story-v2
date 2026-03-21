@@ -29,6 +29,12 @@
     "type": "git",
     "url": "git+https://github.com/wiggitywhitney/commit-story-v2.git"
   },
+  "files": [
+    "src/",
+    "!src/instrumentation.js",
+    "scripts/install-hook.sh",
+    "scripts/uninstall-hook.sh"
+  ],
   "engines": {
     "node": ">=18.0.0"
   },
