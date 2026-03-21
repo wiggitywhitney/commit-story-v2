@@ -13,3 +13,4 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 - (2026-03-21) Added "files" whitelist to package.json — tarball drops from 181 files (1.5 MB) to 38 files (218 KB), instrumentation.js excluded from distribution (PRD #51, milestone 4)
 - (2026-03-21) Updated git hook to load OTel SDK via NODE_OPTIONS --import flag, with symlink-aware path resolution for npm-linked dev mode (PRD #51, milestone 5)
 - (2026-03-21) End-to-end validation: OTel SDK exports traces successfully to local DD Agent via OTLP HTTP, service name commit-story confirmed in resource attributes (PRD #51, milestone 6)
+- (2026-03-21) Moved @opentelemetry/sdk-node from peerDependencies to devDependencies in eval repo, PR #27 (PRD #51, milestone 7)
