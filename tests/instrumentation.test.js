@@ -1,4 +1,4 @@
-// ABOUTME: Tests for OTel SDK bootstrap module (src/instrumentation.js)
+// ABOUTME: Tests for OTel SDK bootstrap module (examples/instrumentation.js)
 // ABOUTME: Verifies SDK configuration, resource attributes, exporter, instrumentations, and shutdown
 
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
@@ -82,7 +82,7 @@ const processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {});
 // ---------------------------------------------------------------------------
 
 beforeAll(async () => {
-  await import('../src/instrumentation.js');
+  await import('../examples/instrumentation.js');
 });
 
 // ---------------------------------------------------------------------------

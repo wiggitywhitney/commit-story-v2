@@ -21,9 +21,9 @@ resolve_script_dir() {
 }
 
 SCRIPT_DIR="$(resolve_script_dir "$0")"
-SRC_DIR="$SCRIPT_DIR/../src"
-if [[ -d "$SRC_DIR" ]]; then
-  INSTRUMENTATION_PATH="$(cd "$SRC_DIR" && pwd)/instrumentation.js"
+EXAMPLES_DIR="$SCRIPT_DIR/../examples"
+if [[ -d "$EXAMPLES_DIR" ]]; then
+  INSTRUMENTATION_PATH="$(cd "$EXAMPLES_DIR" && pwd)/instrumentation.js"
 else
   INSTRUMENTATION_PATH=""
 fi
