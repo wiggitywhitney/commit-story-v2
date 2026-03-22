@@ -18,6 +18,7 @@
  */
 
 import './utils/config.js'; // Load environment variables first
+import './traceloop-init.js'; // Register traceloop auto-instrumentation (if enabled)
 import { config } from './utils/config.js';
 import { execFileSync } from 'node:child_process';
 import { gatherContextForCommit } from './integrators/context-integrator.js';
