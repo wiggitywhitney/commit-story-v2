@@ -42,29 +42,28 @@ sdk.start();
 
 // Graceful shutdown — flush pending spans before exit
 let isShuttingDown = false;
+const originalExit = process.exit;
 
-const shutdown = async () => {
+// Flush spans and exit with the given exit code.
+const shutdownAndExit = (exitCode) => {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  try {
-    await sdk.shutdown();
-  } catch (err) {
-    console.error('OTel SDK shutdown error:', err);
-  }
+  process.exitCode = exitCode;
+  sdk.shutdown()
+    .catch((err) => console.error('OTel SDK shutdown error:', err))
+    .finally(() => originalExit.call(process, process.exitCode));
 };
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+// Custom signal handlers disable Node's default signal behavior, so the
+// process must exit explicitly or it will hang.
+process.on('SIGTERM', () => shutdownAndExit(143));
+process.on('SIGINT', () => shutdownAndExit(130));
 
 // Intercept process.exit() so the OTLP exporter can flush pending spans.
 // CLI apps call process.exit() directly, which kills the event loop before
 // the span processor can export. This wrapper flushes first, then exits.
-const originalExit = process.exit;
 process.exit = (code) => {
-  if (isShuttingDown) return originalExit.call(process, code);
-  isShuttingDown = true;
-  process.exitCode = code !== undefined ? code : (process.exitCode ?? 0);
-  sdk.shutdown()
-    .catch((err) => console.error('OTel SDK shutdown error:', err))
-    .finally(() => originalExit.call(process, process.exitCode));
+  const exitCode = code !== undefined ? code : (process.exitCode ?? 0);
+  if (isShuttingDown) return originalExit.call(process, exitCode);
+  shutdownAndExit(exitCode);
 };

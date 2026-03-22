@@ -19,6 +19,7 @@ delete process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
 delete process.env.OTEL_METRICS_EXPORTER;
 
 afterAll(() => {
+  processExitSpy.mockRestore();
   for (const [key, value] of Object.entries(savedEnv)) {
     if (value !== undefined) {
       process.env[key] = value;
@@ -70,8 +71,11 @@ vi.mock('@opentelemetry/sdk-trace-base', () => ({
 // Spy on process.on to verify shutdown handlers
 const processOnSpy = vi.spyOn(process, 'on');
 
-// Capture original process.exit before module under test overrides it
+// Spy on process.exit before import so the module's `originalExit` captures
+// our spy (a no-op) instead of the real process.exit, which would kill the
+// test runner when signal handlers flush and exit.
 const originalProcessExit = process.exit;
+const processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {});
 
 // ---------------------------------------------------------------------------
 // Import the module under test — triggers side effects against mocks
