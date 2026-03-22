@@ -19,6 +19,7 @@ delete process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
 delete process.env.OTEL_METRICS_EXPORTER;
 
 afterAll(() => {
+  processExitSpy.mockRestore();
   for (const [key, value] of Object.entries(savedEnv)) {
     if (value !== undefined) {
       process.env[key] = value;
@@ -58,26 +59,23 @@ vi.mock('@opentelemetry/exporter-trace-otlp-http', () => ({
   },
 }));
 
-const mockLangChainConstructor = vi.fn();
-vi.mock('@traceloop/instrumentation-langchain', () => ({
-  LangChainInstrumentation: class MockLangChainInstrumentation {
-    constructor() {
-      mockLangChainConstructor();
-    }
-  },
-}));
-
-const mockMcpConstructor = vi.fn();
-vi.mock('@traceloop/instrumentation-mcp', () => ({
-  McpInstrumentation: class MockMcpInstrumentation {
-    constructor() {
-      mockMcpConstructor();
+const mockSimpleSpanProcessorConstructor = vi.fn();
+vi.mock('@opentelemetry/sdk-trace-base', () => ({
+  SimpleSpanProcessor: class MockSimpleSpanProcessor {
+    constructor(exporter) {
+      mockSimpleSpanProcessorConstructor(exporter);
     }
   },
 }));
 
 // Spy on process.on to verify shutdown handlers
 const processOnSpy = vi.spyOn(process, 'on');
+
+// Spy on process.exit before import so the module's `originalExit` captures
+// our spy (a no-op) instead of the real process.exit, which would kill the
+// test runner when signal handlers flush and exit.
+const originalProcessExit = process.exit;
+const processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {});
 
 // ---------------------------------------------------------------------------
 // Import the module under test — triggers side effects against mocks
@@ -123,18 +121,25 @@ describe('instrumentation bootstrap', () => {
     });
   });
 
-  describe('auto-instrumentations', () => {
-    it('includes LangChain instrumentation', () => {
-      expect(mockLangChainConstructor).toHaveBeenCalled();
+  describe('span processor', () => {
+    it('uses SimpleSpanProcessor for immediate export', () => {
+      expect(mockSimpleSpanProcessorConstructor).toHaveBeenCalled();
     });
 
-    it('includes MCP instrumentation', () => {
-      expect(mockMcpConstructor).toHaveBeenCalled();
-    });
-
-    it('passes instrumentations array to NodeSDK', () => {
+    it('passes spanProcessors array to NodeSDK', () => {
       const config = mockNodeSDKConstructor.mock.calls[0][0];
-      expect(config.instrumentations).toHaveLength(2);
+      expect(config.spanProcessors).toHaveLength(1);
+    });
+
+    it('does not pass instrumentations to NodeSDK', () => {
+      const config = mockNodeSDKConstructor.mock.calls[0][0];
+      expect(config.instrumentations).toBeUndefined();
+    });
+  });
+
+  describe('process.exit interception', () => {
+    it('overrides process.exit to flush spans before exiting', () => {
+      expect(process.exit).not.toBe(originalProcessExit);
     });
   });
 
