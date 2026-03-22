@@ -1,0 +1,5 @@
+@tootallnate/once
+google-gax
+http-proxy-agent
+retry-request
+teeny-request
