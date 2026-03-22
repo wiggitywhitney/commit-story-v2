@@ -56,8 +56,14 @@ const shutdownAndExit = (exitCode) => {
 
 // Custom signal handlers disable Node's default signal behavior, so the
 // process must exit explicitly or it will hang.
-process.on('SIGTERM', () => shutdownAndExit(143));
-process.on('SIGINT', () => shutdownAndExit(130));
+process.on('SIGTERM', () => {
+  if (isShuttingDown) return originalExit.call(process, 143);
+  shutdownAndExit(143);
+});
+process.on('SIGINT', () => {
+  if (isShuttingDown) return originalExit.call(process, 130);
+  shutdownAndExit(130);
+});
 
 // Intercept process.exit() so the OTLP exporter can flush pending spans.
 // CLI apps call process.exit() directly, which kills the event loop before
