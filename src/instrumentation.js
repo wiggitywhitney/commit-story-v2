@@ -63,9 +63,8 @@ const originalExit = process.exit;
 process.exit = (code) => {
   if (isShuttingDown) return originalExit.call(process, code);
   isShuttingDown = true;
-  process.exitCode = code ?? 0;
+  process.exitCode = code !== undefined ? code : (process.exitCode ?? 0);
   sdk.shutdown()
     .catch((err) => console.error('OTel SDK shutdown error:', err))
-    .then(() => new Promise(resolve => setTimeout(resolve, 1000)))
     .finally(() => originalExit.call(process, process.exitCode));
 };

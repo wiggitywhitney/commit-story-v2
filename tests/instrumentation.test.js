@@ -58,26 +58,20 @@ vi.mock('@opentelemetry/exporter-trace-otlp-http', () => ({
   },
 }));
 
-const mockLangChainConstructor = vi.fn();
-vi.mock('@traceloop/instrumentation-langchain', () => ({
-  LangChainInstrumentation: class MockLangChainInstrumentation {
-    constructor() {
-      mockLangChainConstructor();
-    }
-  },
-}));
-
-const mockMcpConstructor = vi.fn();
-vi.mock('@traceloop/instrumentation-mcp', () => ({
-  McpInstrumentation: class MockMcpInstrumentation {
-    constructor() {
-      mockMcpConstructor();
+const mockSimpleSpanProcessorConstructor = vi.fn();
+vi.mock('@opentelemetry/sdk-trace-base', () => ({
+  SimpleSpanProcessor: class MockSimpleSpanProcessor {
+    constructor(exporter) {
+      mockSimpleSpanProcessorConstructor(exporter);
     }
   },
 }));
 
 // Spy on process.on to verify shutdown handlers
 const processOnSpy = vi.spyOn(process, 'on');
+
+// Capture original process.exit before module under test overrides it
+const originalProcessExit = process.exit;
 
 // ---------------------------------------------------------------------------
 // Import the module under test — triggers side effects against mocks
@@ -123,18 +117,25 @@ describe('instrumentation bootstrap', () => {
     });
   });
 
-  describe('auto-instrumentations', () => {
-    it('includes LangChain instrumentation', () => {
-      expect(mockLangChainConstructor).toHaveBeenCalled();
+  describe('span processor', () => {
+    it('uses SimpleSpanProcessor for immediate export', () => {
+      expect(mockSimpleSpanProcessorConstructor).toHaveBeenCalled();
     });
 
-    it('includes MCP instrumentation', () => {
-      expect(mockMcpConstructor).toHaveBeenCalled();
-    });
-
-    it('passes instrumentations array to NodeSDK', () => {
+    it('passes spanProcessors array to NodeSDK', () => {
       const config = mockNodeSDKConstructor.mock.calls[0][0];
-      expect(config.instrumentations).toHaveLength(2);
+      expect(config.spanProcessors).toHaveLength(1);
+    });
+
+    it('does not pass instrumentations to NodeSDK', () => {
+      const config = mockNodeSDKConstructor.mock.calls[0][0];
+      expect(config.instrumentations).toBeUndefined();
+    });
+  });
+
+  describe('process.exit interception', () => {
+    it('overrides process.exit to flush spans before exiting', () => {
+      expect(process.exit).not.toBe(originalProcessExit);
     });
   });
 
