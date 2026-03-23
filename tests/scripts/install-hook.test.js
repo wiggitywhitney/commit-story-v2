@@ -12,14 +12,19 @@ const UNINSTALL_SCRIPT = join(process.cwd(), 'scripts', 'uninstall-hook.sh');
 
 describe('install-hook.sh', () => {
   let tmpDir;
+  let fakePackageDir;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'commit-story-hook-'));
+    fakePackageDir = null;
     execFileSync('git', ['init'], { cwd: tmpDir, stdio: 'ignore' });
   });
 
   afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true });
+    if (fakePackageDir && existsSync(fakePackageDir)) {
+      rmSync(fakePackageDir, { recursive: true, force: true });
+    }
   });
 
   it('creates post-commit hook file', () => {
@@ -117,7 +122,7 @@ describe('install-hook.sh', () => {
 
   it('discovers instrumentation.js through npm link symlinks', () => {
     // Simulate an npm-linked commit-story package
-    const fakePackageDir = mkdtempSync(join(tmpdir(), 'commit-story-pkg-'));
+    fakePackageDir = mkdtempSync(join(tmpdir(), 'commit-story-pkg-'));
     mkdirSync(join(fakePackageDir, 'examples'), { recursive: true });
     writeFileSync(join(fakePackageDir, 'examples', 'instrumentation.js'), '// stub');
     mkdirSync(join(fakePackageDir, 'scripts'), { recursive: true });
@@ -131,8 +136,6 @@ describe('install-hook.sh', () => {
     const hookContent = readFileSync(join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf-8');
     // Hook should have the logic to follow node_modules symlinks
     expect(hookContent).toContain('node_modules/commit-story');
-
-    rmSync(fakePackageDir, { recursive: true, force: true });
   });
 });
 

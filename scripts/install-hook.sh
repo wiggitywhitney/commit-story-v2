@@ -50,7 +50,14 @@ find_instrumentation() {
   local pkg_link="$repo_root/node_modules/commit-story"
   if [[ -L "$pkg_link" ]]; then
     local real_pkg
-    real_pkg="$(readlink -f "$pkg_link")"
+    # Portable symlink resolution (macOS lacks readlink -f)
+    if command -v realpath >/dev/null 2>&1; then
+      real_pkg="$(realpath "$pkg_link")"
+    elif command -v greadlink >/dev/null 2>&1; then
+      real_pkg="$(greadlink -f "$pkg_link")"
+    else
+      real_pkg="$(cd "$pkg_link" && pwd -P)"
+    fi
     if [[ -f "$real_pkg/examples/instrumentation.js" ]]; then
       echo "$real_pkg/examples/instrumentation.js"
       return
