@@ -17,6 +17,9 @@ import { getAllGuidelines } from './prompts/guidelines/index.js';
 import { summaryPrompt } from './prompts/sections/summary-prompt.js';
 import { dialoguePrompt } from './prompts/sections/dialogue-prompt.js';
 import { technicalDecisionsPrompt } from './prompts/sections/technical-decisions-prompt.js';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Journal state definition using LangGraph Annotation API
@@ -434,32 +437,39 @@ function cleanSummaryOutput(raw) {
  * Creates a narrative overview of the commit
  */
 async function summaryNode(state) {
-  try {
-    const { context } = state;
-    const guidelines = getAllGuidelines();
-    const hasFunctional = hasFunctionalCode(context.commit.diff);
-    // Use pre-computed stats from message filter instead of re-iterating
-    const hasChat = (context.metadata?.filterStats?.substantialUserMessages ?? 0) >= 2;
-    const sectionPrompt = summaryPrompt(hasFunctional, hasChat);
+  return tracer.startActiveSpan('commit_story.ai.generate_section', async (span) => {
+    try {
+      span.setAttribute('commit_story.ai.section_type', 'summary');
+      span.setAttribute('gen_ai.operation.name', 'chat');
+      span.setAttribute('gen_ai.request.temperature', NODE_TEMPERATURES.summary);
+      const { context } = state;
+      const guidelines = getAllGuidelines();
+      const hasFunctional = hasFunctionalCode(context.commit.diff);
+      // Use pre-computed stats from message filter instead of re-iterating
+      const hasChat = (context.metadata?.filterStats?.substantialUserMessages ?? 0) >= 2;
+      const sectionPrompt = summaryPrompt(hasFunctional, hasChat);
 
-    const systemContent = `${guidelines}
+      const systemContent = `${guidelines}
 
 ${sectionPrompt}`;
 
-    const userContent = formatContextForSummary(context);
+      const userContent = formatContextForSummary(context);
 
-    const result = await getModel(NODE_TEMPERATURES.summary).invoke([
-      new SystemMessage(systemContent),
-      new HumanMessage(userContent),
-    ]);
+      const result = await getModel(NODE_TEMPERATURES.summary).invoke([
+        new SystemMessage(systemContent),
+        new HumanMessage(userContent),
+      ]);
 
-    return { summary: cleanSummaryOutput(result.content) };
-  } catch (error) {
-    return {
-      summary: '[Summary generation failed]',
-      errors: [`Summary generation failed: ${error.message}`],
-    };
-  }
+      return { summary: cleanSummaryOutput(result.content) };
+    } catch (error) {
+      return {
+        summary: '[Summary generation failed]',
+        errors: [`Summary generation failed: ${error.message}`],
+      };
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**
@@ -595,17 +605,32 @@ function getGraph() {
  * @returns {Promise<JournalSections>} Generated journal sections
  */
 export async function generateJournalSections(context) {
-  const graph = getGraph();
+  return tracer.startActiveSpan('commit_story.journal.generate_sections', async (span) => {
+    try {
+      const graph = getGraph();
 
-  const result = await graph.invoke({ context });
+      const result = await graph.invoke({ context });
 
-  return {
-    summary: result.summary || '',
-    dialogue: result.dialogue || '',
-    technicalDecisions: result.technicalDecisions || '',
-    errors: result.errors || [],
-    generatedAt: new Date(),
-  };
+      const sections = {
+        summary: result.summary || '',
+        dialogue: result.dialogue || '',
+        technicalDecisions: result.technicalDecisions || '',
+        errors: result.errors || [],
+        generatedAt: new Date(),
+      };
+
+      span.setAttribute('commit_story.journal.sections', ['summary', 'dialogue', 'technical_decisions']);
+      span.setAttribute('commit_story.journal.entry_date', sections.generatedAt.toISOString().split('T')[0]);
+
+      return sections;
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 // Export node functions and helpers for testing
