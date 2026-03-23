@@ -62,9 +62,8 @@ describe('install-hook.sh', () => {
     execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
 
     const hookContent = readFileSync(join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf-8');
-    // Should have a fallback path that runs without --import
-    expect(hookContent).toMatch(/else/);
-    expect(hookContent).toMatch(/npx commit-story/);
+    // The else branch should run npx commit-story without --import
+    expect(hookContent).toMatch(/else[\s\S]*?npx commit-story/);
   });
 
   it('does not contain hardcoded absolute paths', () => {
@@ -88,7 +87,8 @@ describe('install-hook.sh', () => {
     execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
 
     const hookContent = readFileSync(join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf-8');
-    expect(hookContent).toMatch(/npx commit-story\s*(&|.*&)/);
+    // The outer subshell is backgrounded with ) &
+    expect(hookContent).toMatch(/\)\s*&/);
   });
 
   it('refuses to overwrite existing hook', () => {
@@ -120,7 +120,7 @@ describe('install-hook.sh', () => {
     expect(hookContent).toMatch(/\$\{NODE_OPTIONS:\+/);
   });
 
-  it('discovers instrumentation.js through npm link symlinks', () => {
+  it('generates hook with npm link symlink resolution logic', () => {
     // Simulate an npm-linked commit-story package
     fakePackageDir = mkdtempSync(join(tmpdir(), 'commit-story-pkg-'));
     mkdirSync(join(fakePackageDir, 'examples'), { recursive: true });

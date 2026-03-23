@@ -69,9 +69,9 @@ find_instrumentation() {
 (
   INSTRUMENT="$(find_instrumentation)"
   if [[ -n "$INSTRUMENT" ]]; then
-    NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--import '$INSTRUMENT'" npx commit-story &
+    NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--import '$INSTRUMENT'" npx commit-story
   else
-    npx commit-story &
+    npx commit-story
   fi
 ) &
 HOOKEOF
