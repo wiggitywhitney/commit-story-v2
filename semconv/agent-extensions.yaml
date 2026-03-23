@@ -28,6 +28,14 @@ groups:
         type: string
         stability: development
         brief: "Agent-discovered attribute: commit_story.summary.month_label"
+      - id: commit_story.cli.subcommand
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.cli.subcommand"
+      - id: commit_story.commit.is_merge
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.commit.is_merge"
   - id: span.commit_story.context.collect_chat_messages
     type: span
     stability: development
@@ -97,4 +105,9 @@ groups:
     type: span
     stability: development
     brief: "Agent-discovered span: commit_story.summary.generate_monthly"
+    span_kind: internal
+  - id: span.commit_story.cli.main
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.cli.main"
     span_kind: internal
