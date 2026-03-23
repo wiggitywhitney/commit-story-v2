@@ -146,8 +146,9 @@ describe('findUnsummarizedDays', () => {
   });
 
   it('excludes today from results (today is not yet complete)', async () => {
-    const today = new Date();
-    const todayStr = today.toISOString().slice(0, 10);
+    // Use local date (not UTC) to match getTodayString() in summary-detector
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     writeEntry(todayStr);
     // Also write a past entry to verify it IS included
     writeEntry('2026-01-01');
