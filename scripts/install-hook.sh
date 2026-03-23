@@ -32,12 +32,13 @@ cat > "$HOOK_PATH" << 'HOOKEOF'
 # Generates a journal entry for each commit
 
 # Resolve symlinks portably (macOS lacks readlink -f)
+# NOTE: Fallback method (cd + pwd -P) only works for directory paths/symlinks
 resolve_path() {
-  if command -v realpath >/dev/null 2>&1; then
-    realpath "$1"
-  elif command -v greadlink >/dev/null 2>&1; then
-    greadlink -f "$1"
-  else
+  if command -v realpath >/dev/null 2>&1 && realpath "$1" 2>/dev/null; then
+    return
+  elif command -v greadlink >/dev/null 2>&1 && greadlink -f "$1" 2>/dev/null; then
+    return
+  elif [[ -d "$1" ]] || [[ -L "$1" ]]; then
     cd "$1" && pwd -P
   fi
 }
@@ -50,7 +51,7 @@ find_package_dir() {
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return
 
   # Check if this IS the commit-story repo (has src/index.js and package.json with commit-story name)
-  if [[ -f "$repo_root/src/index.js" ]] && grep -q '"commit-story"' "$repo_root/package.json" 2>/dev/null; then
+  if [[ -f "$repo_root/src/index.js" ]] && grep -q '"name"[[:space:]]*:[[:space:]]*"commit-story"' "$repo_root/package.json" 2>/dev/null; then
     echo "$repo_root"
     return
   fi
