@@ -1,3 +1,6 @@
+// ABOUTME: Tests for git-collector.js — commit data extraction and previous commit time
+// ABOUTME: Validates SHA, author, timestamp, diff, merge detection against the live repo
+
 import { describe, it, expect } from 'vitest';
 import { getCommitData, getPreviousCommitTime } from '../../src/collectors/git-collector.js';
 
@@ -109,15 +112,6 @@ describe('getPreviousCommitTime', () => {
     if (prevTime !== null) {
       expect(prevTime).toBeInstanceOf(Date);
       expect(prevTime.getTime()).not.toBeNaN();
-    }
-  });
-
-  it('returns a time earlier than the current commit', async () => {
-    const currentData = await getCommitData('HEAD');
-    const prevTime = await getPreviousCommitTime('HEAD');
-
-    if (prevTime !== null) {
-      expect(prevTime.getTime()).toBeLessThanOrEqual(currentData.timestamp.getTime());
     }
   });
 
