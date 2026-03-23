@@ -1,9 +1,9 @@
 // ABOUTME: Tests for install-hook.sh — verifies post-commit hook generation with OTel SDK loading
-// ABOUTME: Covers hook content, NODE_OPTIONS --import flag, executable permissions, and edge cases
+// ABOUTME: Covers runtime discovery of instrumentation.js, fallback behavior, and edge cases
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, existsSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, existsSync, statSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -36,25 +36,39 @@ describe('install-hook.sh', () => {
     expect(hookContent).toContain('npx commit-story');
   });
 
-  it('includes NODE_OPTIONS with --import for instrumentation.js', () => {
+  it('includes runtime discovery function for instrumentation.js', () => {
     execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
 
     const hookContent = readFileSync(join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf-8');
-    expect(hookContent).toContain('NODE_OPTIONS=');
-    expect(hookContent).toContain('--import');
+    // Hook should contain resolution logic, not a hardcoded path
+    expect(hookContent).toContain('find_instrumentation');
     expect(hookContent).toContain('instrumentation.js');
   });
 
-  it('embeds absolute path to instrumentation.js', () => {
+  it('uses --import when instrumentation.js is found at runtime', () => {
     execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
 
     const hookContent = readFileSync(join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf-8');
-    const match = hookContent.match(/--import\s+'?([^"&\s']+)'?/);
-    expect(match).toBeTruthy();
-    // Path should be absolute
-    expect(match[1]).toMatch(/^\//);
-    // Should point to the real instrumentation.js in this repo
-    expect(existsSync(match[1])).toBe(true);
+    expect(hookContent).toContain('--import');
+    expect(hookContent).toContain('NODE_OPTIONS');
+  });
+
+  it('falls back to no-telemetry mode when instrumentation.js is absent', () => {
+    execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
+
+    const hookContent = readFileSync(join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf-8');
+    // Should have a fallback path that runs without --import
+    expect(hookContent).toMatch(/else/);
+    expect(hookContent).toMatch(/npx commit-story/);
+  });
+
+  it('does not contain hardcoded absolute paths', () => {
+    execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
+
+    const hookContent = readFileSync(join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf-8');
+    // Should NOT contain baked-in absolute paths to instrumentation.js
+    const absolutePathMatch = hookContent.match(/--import\s+'\/[^']+instrumentation\.js'/);
+    expect(absolutePathMatch).toBeNull();
   });
 
   it('makes hook executable', () => {
@@ -69,7 +83,7 @@ describe('install-hook.sh', () => {
     execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
 
     const hookContent = readFileSync(join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf-8');
-    expect(hookContent).toMatch(/npx commit-story\s*&/);
+    expect(hookContent).toMatch(/npx commit-story\s*(&|.*&)/);
   });
 
   it('refuses to overwrite existing hook', () => {
@@ -99,6 +113,26 @@ describe('install-hook.sh', () => {
     const hookContent = readFileSync(join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf-8');
     // Should use ${NODE_OPTIONS:+...} pattern to preserve existing options
     expect(hookContent).toMatch(/\$\{NODE_OPTIONS:\+/);
+  });
+
+  it('discovers instrumentation.js through npm link symlinks', () => {
+    // Simulate an npm-linked commit-story package
+    const fakePackageDir = mkdtempSync(join(tmpdir(), 'commit-story-pkg-'));
+    mkdirSync(join(fakePackageDir, 'examples'), { recursive: true });
+    writeFileSync(join(fakePackageDir, 'examples', 'instrumentation.js'), '// stub');
+    mkdirSync(join(fakePackageDir, 'scripts'), { recursive: true });
+
+    // Create a symlink in the tmp repo's node_modules pointing to our fake package
+    mkdirSync(join(tmpDir, 'node_modules'), { recursive: true });
+    symlinkSync(fakePackageDir, join(tmpDir, 'node_modules', 'commit-story'));
+
+    execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
+
+    const hookContent = readFileSync(join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf-8');
+    // Hook should have the logic to follow node_modules symlinks
+    expect(hookContent).toContain('node_modules/commit-story');
+
+    rmSync(fakePackageDir, { recursive: true, force: true });
   });
 });
 

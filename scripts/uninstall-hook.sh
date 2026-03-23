@@ -26,11 +26,9 @@ fi
 if grep -q "npx commit-story" "$HOOK_PATH"; then
   # It's our hook or contains our hook
 
-  # Count lines to see if there's more content
-  LINE_COUNT=$(wc -l < "$HOOK_PATH" | tr -d ' ')
-
-  if [ "$LINE_COUNT" -le 6 ]; then
-    # Simple hook (just ours) - safe to remove
+  # Check if the hook is exclusively ours (contains our marker comment)
+  if grep -q "commit-story post-commit hook" "$HOOK_PATH"; then
+    # Our hook — safe to remove
     rm "$HOOK_PATH"
     echo "✅ Git hook removed successfully"
   else

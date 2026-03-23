@@ -1,32 +1,12 @@
 #!/usr/bin/env bash
-# ABOUTME: Installs the commit-story git post-commit hook with OTel SDK loading
-# ABOUTME: Resolves instrumentation.js path through symlinks for dev/linked mode
+# ABOUTME: Installs the commit-story git post-commit hook with runtime OTel SDK discovery
+# ABOUTME: Generated hook resolves instrumentation.js at runtime — no hardcoded paths to break
 #
 # Run from the root of a git repository.
 
 set -euo pipefail
 
 HOOK_PATH=".git/hooks/post-commit"
-
-# Resolve this script's real location (follows symlinks from npx/npm link)
-resolve_script_dir() {
-  local source="$1"
-  while [[ -L "$source" ]]; do
-    local dir
-    dir="$(cd "$(dirname "$source")" && pwd)"
-    source="$(readlink "$source")"
-    [[ "$source" != /* ]] && source="$dir/$source"
-  done
-  cd "$(dirname "$source")" && pwd
-}
-
-SCRIPT_DIR="$(resolve_script_dir "$0")"
-EXAMPLES_DIR="$SCRIPT_DIR/../examples"
-if [[ -d "$EXAMPLES_DIR" ]]; then
-  INSTRUMENTATION_PATH="$(cd "$EXAMPLES_DIR" && pwd)/instrumentation.js"
-else
-  INSTRUMENTATION_PATH=""
-fi
 
 # Check if we're in a git repository
 if [[ ! -d ".git" ]]; then
@@ -42,31 +22,52 @@ if [[ -f "$HOOK_PATH" ]]; then
   echo "To avoid overwriting your existing hook, please add"
   echo "the following line to your post-commit hook manually:"
   echo ""
-  if [[ -n "$INSTRUMENTATION_PATH" && -f "$INSTRUMENTATION_PATH" ]]; then
-    echo "    NODE_OPTIONS=\"\${NODE_OPTIONS:+\$NODE_OPTIONS }--import '$INSTRUMENTATION_PATH'\" npx commit-story &"
-  else
-    echo "    npx commit-story &"
-  fi
+  echo "    npx commit-story &"
   echo ""
   exit 1
 fi
 
-# Build the hook command based on whether instrumentation.js exists (dev/linked mode)
-if [[ -n "$INSTRUMENTATION_PATH" && -f "$INSTRUMENTATION_PATH" ]]; then
-  HOOK_CMD="NODE_OPTIONS=\"\${NODE_OPTIONS:+\$NODE_OPTIONS }--import '$INSTRUMENTATION_PATH'\" npx commit-story &"
-else
-  HOOK_CMD="npx commit-story &"
-fi
-
-# Create the hook
-cat > "$HOOK_PATH" << EOF
+# Create the hook with runtime instrumentation discovery
+cat > "$HOOK_PATH" << 'HOOKEOF'
 #!/bin/bash
 # commit-story post-commit hook
 # Generates a journal entry for each commit
 
+# Discover instrumentation.js at runtime by checking:
+# 1. Local repo (development mode — this IS the commit-story repo)
+# 2. npm link symlink (dev dependency linked to the real repo)
+find_instrumentation() {
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return
+
+  # Check local examples/ (developing commit-story itself)
+  if [[ -f "$repo_root/examples/instrumentation.js" ]]; then
+    echo "$repo_root/examples/instrumentation.js"
+    return
+  fi
+
+  # Follow npm link symlink to the real package
+  local pkg_link="$repo_root/node_modules/commit-story"
+  if [[ -L "$pkg_link" ]]; then
+    local real_pkg
+    real_pkg="$(readlink -f "$pkg_link")"
+    if [[ -f "$real_pkg/examples/instrumentation.js" ]]; then
+      echo "$real_pkg/examples/instrumentation.js"
+      return
+    fi
+  fi
+}
+
 # Run in background to not block git
-$HOOK_CMD
-EOF
+(
+  INSTRUMENT="$(find_instrumentation)"
+  if [[ -n "$INSTRUMENT" ]]; then
+    NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--import '$INSTRUMENT'" npx commit-story &
+  else
+    npx commit-story &
+  fi
+) &
+HOOKEOF
 
 # Make it executable
 chmod +x "$HOOK_PATH"
@@ -75,9 +76,7 @@ echo "✅ Git hook installed successfully"
 echo "   Location: $HOOK_PATH"
 echo ""
 echo "Journal entries will be generated automatically after each commit."
-if [[ -n "$INSTRUMENTATION_PATH" && -f "$INSTRUMENTATION_PATH" ]]; then
-  echo "   OTel SDK: enabled (--import instrumentation.js)"
-fi
+echo "   OTel SDK: auto-discovered at runtime (if available)"
 echo ""
 echo "To remove the hook, run: npx commit-story-remove"
 echo "Or delete: $HOOK_PATH"
