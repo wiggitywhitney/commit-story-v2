@@ -54,3 +54,23 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.summarize.run_monthly"
     span_kind: internal
+  - id: span.commit_story.ai.generate_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_summary"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_technical_decisions
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_technical_decisions"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_dialogue
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_dialogue"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_sections
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_sections"
+    span_kind: internal
