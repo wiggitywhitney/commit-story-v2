@@ -147,3 +147,18 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.journal.discover_reflections"
     span_kind: internal
+  - id: span.commit_story.summarize.generate_and_save_daily
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summarize.generate_and_save_daily"
+    span_kind: internal
+  - id: span.commit_story.summarize.generate_and_save_weekly
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summarize.generate_and_save_weekly"
+    span_kind: internal
+  - id: span.commit_story.summarize.generate_and_save_monthly
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summarize.generate_and_save_monthly"
+    span_kind: internal
