@@ -112,3 +112,8 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.summarize.monthly_node"
     span_kind: internal
+  - id: span.commit_story.cli.main
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.cli.main"
+    span_kind: internal
