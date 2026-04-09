@@ -32,6 +32,14 @@ groups:
         type: string
         stability: development
         brief: "Agent-discovered attribute: commit_story.summarize.month_label"
+      - id: commit_story.mcp.server_name
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.mcp.server_name"
+      - id: commit_story.mcp.server_version
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.mcp.server_version"
   - id: span.commit_story.context.collect_chat_messages
     type: span
     stability: development
@@ -161,4 +169,9 @@ groups:
     type: span
     stability: development
     brief: "Agent-discovered span: commit_story.summarize.generate_and_save_monthly"
+    span_kind: internal
+  - id: span.commit_story.mcp.main
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.mcp.main"
     span_kind: internal
