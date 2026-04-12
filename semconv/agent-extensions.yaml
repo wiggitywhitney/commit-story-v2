@@ -28,14 +28,6 @@ groups:
         type: int
         stability: development
         brief: "Agent-discovered attribute: commit_story.summarize.failed_count"
-      - id: commit_story.summarize.week_label
-        type: string
-        stability: development
-        brief: "Agent-discovered attribute: commit_story.summarize.week_label"
-      - id: commit_story.summarize.month_label
-        type: string
-        stability: development
-        brief: "Agent-discovered attribute: commit_story.summarize.month_label"
   - id: span.commit_story.context.collect_chat_messages
     type: span
     stability: development
@@ -81,38 +73,8 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.journal.generate_sections"
     span_kind: internal
-  - id: span.commit_story.summarize.daily_summary_node
+  - id: span.commit_story.context.gather_context_for_commit
     type: span
     stability: development
-    brief: "Agent-discovered span: commit_story.summarize.daily_summary_node"
-    span_kind: internal
-  - id: span.commit_story.summarize.generate_daily_summary
-    type: span
-    stability: development
-    brief: "Agent-discovered span: commit_story.summarize.generate_daily_summary"
-    span_kind: internal
-  - id: span.commit_story.summarize.weekly_summary_node
-    type: span
-    stability: development
-    brief: "Agent-discovered span: commit_story.summarize.weekly_summary_node"
-    span_kind: internal
-  - id: span.commit_story.summarize.generate_weekly_summary
-    type: span
-    stability: development
-    brief: "Agent-discovered span: commit_story.summarize.generate_weekly_summary"
-    span_kind: internal
-  - id: span.commit_story.summarize.monthly_summary_node
-    type: span
-    stability: development
-    brief: "Agent-discovered span: commit_story.summarize.monthly_summary_node"
-    span_kind: internal
-  - id: span.commit_story.summarize.generate_monthly_summary
-    type: span
-    stability: development
-    brief: "Agent-discovered span: commit_story.summarize.generate_monthly_summary"
-    span_kind: internal
-  - id: span.commit_story.cli.main
-    type: span
-    stability: development
-    brief: "Agent-discovered span: commit_story.cli.main"
+    brief: "Agent-discovered span: commit_story.context.gather_context_for_commit"
     span_kind: internal
