@@ -1,8 +1,11 @@
 // ABOUTME: Centralizes path generation for all journal files (entries, reflections, context, summaries)
 // ABOUTME: Uses date-based directory structure: journal/{type}/YYYY-MM/YYYY-MM-DD.md
 
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
+
+const tracer = trace.getTracer('commit-story');
 
 /** Root directory for all journal files */
 const JOURNAL_ROOT = 'journal';
@@ -86,8 +89,19 @@ export function getReflectionsDirectory(date, basePath = '.') {
  * @param {string} filePath - Path to file
  */
 export async function ensureDirectory(filePath) {
-  const dir = dirname(filePath);
-  await mkdir(dir, { recursive: true });
+  return tracer.startActiveSpan('commit_story.journal.ensure_directory', async (span) => {
+    try {
+      span.setAttribute('commit_story.journal.file_path', filePath.split('/').pop() || filePath);
+      const dir = dirname(filePath);
+      await mkdir(dir, { recursive: true });
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**
