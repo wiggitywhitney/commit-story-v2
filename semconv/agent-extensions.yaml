@@ -28,6 +28,10 @@ groups:
         type: int
         stability: development
         brief: "Agent-discovered attribute: commit_story.summarize.failed_count"
+      - id: commit_story.context.reflections_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.context.reflections_count"
   - id: span.commit_story.context.collect_chat_messages
     type: span
     stability: development
@@ -94,4 +98,14 @@ groups:
     stability: development
     brief: "Agent-discovered span:
       commit_story.summarize.trigger_auto_monthly_summaries"
+    span_kind: internal
+  - id: span.commit_story.journal.save_journal_entry
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.save_journal_entry"
+    span_kind: internal
+  - id: span.commit_story.context.discover_reflections
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.context.discover_reflections"
     span_kind: internal
