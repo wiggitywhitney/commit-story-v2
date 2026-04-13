@@ -13,8 +13,11 @@ import { dirname, join } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
 
-// Disable auto-metrics — SDK 2.x auto-instantiates a Metrics SDK
-if (!process.env.OTEL_METRICS_EXPORTER) {
+// Disable auto-metrics — SDK 2.x auto-instantiates a Metrics SDK.
+// For IS scoring runs: set IS_SCORING_RUN=1 to enable the metrics exporter so
+// MET rules can be evaluated. MET rules will fail because spiny-orb produces no
+// OTel metrics by design — this is honest signal, not an instrumentation failure.
+if (!process.env.OTEL_METRICS_EXPORTER && !process.env.IS_SCORING_RUN) {
   process.env.OTEL_METRICS_EXPORTER = 'none';
 }
 
