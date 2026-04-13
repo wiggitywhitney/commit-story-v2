@@ -170,7 +170,7 @@ See [`docs/telemetry/`](docs/telemetry/) for the generated attribute documentati
 
 `commit-story` ships with `@opentelemetry/api` as a peer dependency — a lightweight no-op (~50KB) that does nothing unless an OTel SDK is present. No SDK is bundled in the package; deployers who want trace data bring their own.
 
-An example bootstrap is available at [`examples/instrumentation.js`](examples/instrumentation.js) in the repository. Load it via `node --import` before the application:
+An example bootstrap is available at [`examples/instrumentation.js`](examples/instrumentation.js) in the repository. Load it via `node --import` before the application (requires Node ≥18.18.0):
 
 ```bash
 node --import ./examples/instrumentation.js src/index.js
