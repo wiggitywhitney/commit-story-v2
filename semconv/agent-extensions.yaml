@@ -70,3 +70,33 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.journal.generate_sections"
     span_kind: internal
+  - id: span.commit_story.summary.daily_summary_node
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.daily_summary_node"
+    span_kind: internal
+  - id: span.commit_story.summary.generate_daily_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.generate_daily_summary"
+    span_kind: internal
+  - id: span.commit_story.summary.weekly_summary_node
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.weekly_summary_node"
+    span_kind: internal
+  - id: span.commit_story.summary.generate_weekly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.generate_weekly_summary"
+    span_kind: internal
+  - id: span.commit_story.summary.monthly_summary_node
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.monthly_summary_node"
+    span_kind: internal
+  - id: span.commit_story.summary.generate_monthly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.generate_monthly_summary"
+    span_kind: internal
