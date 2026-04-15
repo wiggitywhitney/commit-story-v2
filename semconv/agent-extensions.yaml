@@ -1,4 +1,25 @@
 groups:
+  - id: registry.commit_story.agent_extensions
+    type: attribute_group
+    display_name: Agent-Created Attributes
+    brief: Attributes created by the instrumentation agent
+    attributes:
+      - id: commit_story.summarize.input_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.summarize.input_count"
+      - id: commit_story.summarize.force
+        type: boolean
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.summarize.force"
+      - id: commit_story.summarize.generated_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.summarize.generated_count"
+      - id: commit_story.summarize.failed_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.summarize.failed_count"
   - id: span.commit_story.context.collect_chat_messages
     type: span
     stability: development
@@ -13,4 +34,19 @@ groups:
     type: span
     stability: development
     brief: "Agent-discovered span: commit_story.git.get_previous_commit_time"
+    span_kind: internal
+  - id: span.commit_story.summarize.run_daily
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summarize.run_daily"
+    span_kind: internal
+  - id: span.commit_story.summarize.run_weekly
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summarize.run_weekly"
+    span_kind: internal
+  - id: span.commit_story.summarize.run_monthly
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summarize.run_monthly"
     span_kind: internal
