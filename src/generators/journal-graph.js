@@ -17,6 +17,9 @@ import { getAllGuidelines } from './prompts/guidelines/index.js';
 import { summaryPrompt } from './prompts/sections/summary-prompt.js';
 import { dialoguePrompt } from './prompts/sections/dialogue-prompt.js';
 import { technicalDecisionsPrompt } from './prompts/sections/technical-decisions-prompt.js';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Journal state definition using LangGraph Annotation API
@@ -434,32 +437,40 @@ function cleanSummaryOutput(raw) {
  * Creates a narrative overview of the commit
  */
 async function summaryNode(state) {
-  try {
-    const { context } = state;
-    const guidelines = getAllGuidelines();
-    const hasFunctional = hasFunctionalCode(context.commit.diff);
-    // Use pre-computed stats from message filter instead of re-iterating
-    const hasChat = (context.metadata?.filterStats?.substantialUserMessages ?? 0) >= 2;
-    const sectionPrompt = summaryPrompt(hasFunctional, hasChat);
+  return tracer.startActiveSpan('commit_story.ai.generate_summary', async (span) => {
+    try {
+      const { context } = state;
+      const guidelines = getAllGuidelines();
+      const hasFunctional = hasFunctionalCode(context.commit.diff);
+      // Use pre-computed stats from message filter instead of re-iterating
+      const hasChat = (context.metadata?.filterStats?.substantialUserMessages ?? 0) >= 2;
+      const sectionPrompt = summaryPrompt(hasFunctional, hasChat);
 
-    const systemContent = `${guidelines}
+      const systemContent = `${guidelines}
 
 ${sectionPrompt}`;
 
-    const userContent = formatContextForSummary(context);
+      const userContent = formatContextForSummary(context);
 
-    const result = await getModel(NODE_TEMPERATURES.summary).invoke([
-      new SystemMessage(systemContent),
-      new HumanMessage(userContent),
-    ]);
+      span.setAttribute('commit_story.ai.section_type', 'summary');
+      span.setAttribute('gen_ai.operation.name', 'chat');
+      span.setAttribute('gen_ai.request.temperature', NODE_TEMPERATURES.summary);
 
-    return { summary: cleanSummaryOutput(result.content) };
-  } catch (error) {
-    return {
-      summary: '[Summary generation failed]',
-      errors: [`Summary generation failed: ${error.message}`],
-    };
-  }
+      const result = await getModel(NODE_TEMPERATURES.summary).invoke([
+        new SystemMessage(systemContent),
+        new HumanMessage(userContent),
+      ]);
+
+      return { summary: cleanSummaryOutput(result.content) };
+    } catch (error) {
+      return {
+        summary: '[Summary generation failed]',
+        errors: [`Summary generation failed: ${error.message}`],
+      };
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**
@@ -469,40 +480,51 @@ ${sectionPrompt}`;
  * Early exit when no substantial user messages exist
  */
 async function technicalNode(state) {
-  try {
-    const { context } = state;
+  return tracer.startActiveSpan('commit_story.ai.generate_technical_decisions', async (span) => {
+    try {
+      span.setAttribute('commit_story.ai.section_type', 'technical_decisions');
+      span.setAttribute('gen_ai.operation.name', 'chat');
+      span.setAttribute('gen_ai.request.temperature', NODE_TEMPERATURES.technical);
 
-    // Early exit: skip AI call when no substantial user messages (v1 pattern)
-    const substantialUserMessages = context.metadata?.filterStats?.substantialUserMessages ?? 0;
-    if (substantialUserMessages === 0) {
-      return { technicalDecisions: 'No significant technical decisions documented for this development session' };
-    }
+      const { context } = state;
 
-    const guidelines = getAllGuidelines();
+      // Early exit: skip AI call when no substantial user messages (v1 pattern)
+      const substantialUserMessages = context.metadata?.filterStats?.substantialUserMessages ?? 0;
+      if (substantialUserMessages === 0) {
+        span.setAttribute('commit_story.filter.messages_after', 0);
+        return { technicalDecisions: 'No significant technical decisions documented for this development session' };
+      }
 
-    // Analyze diff to generate dynamic implementation guidance
-    const diffAnalysis = analyzeCommitContent(context.commit.diff);
-    const implementationGuidance = generateImplementationGuidance(diffAnalysis);
+      span.setAttribute('commit_story.filter.messages_after', substantialUserMessages);
 
-    const systemContent = `${guidelines}
+      const guidelines = getAllGuidelines();
+
+      // Analyze diff to generate dynamic implementation guidance
+      const diffAnalysis = analyzeCommitContent(context.commit.diff);
+      const implementationGuidance = generateImplementationGuidance(diffAnalysis);
+
+      const systemContent = `${guidelines}
 
 ${technicalDecisionsPrompt}
 ${implementationGuidance}`;
 
-    const userContent = formatContextForUser(context);
+      const userContent = formatContextForUser(context);
 
-    const result = await getModel(NODE_TEMPERATURES.technical).invoke([
-      new SystemMessage(systemContent),
-      new HumanMessage(userContent),
-    ]);
+      const result = await getModel(NODE_TEMPERATURES.technical).invoke([
+        new SystemMessage(systemContent),
+        new HumanMessage(userContent),
+      ]);
 
-    return { technicalDecisions: cleanTechnicalOutput(result.content.trim()) };
-  } catch (error) {
-    return {
-      technicalDecisions: '[Technical decisions extraction failed]',
-      errors: [`Technical decisions extraction failed: ${error.message}`],
-    };
-  }
+      return { technicalDecisions: cleanTechnicalOutput(result.content.trim()) };
+    } catch (error) {
+      return {
+        technicalDecisions: '[Technical decisions extraction failed]',
+        errors: [`Technical decisions extraction failed: ${error.message}`],
+      };
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**
@@ -513,44 +535,57 @@ ${implementationGuidance}`;
  * Early exit when no substantial user messages; dynamic maxQuotes
  */
 async function dialogueNode(state) {
-  try {
-    const { context, summary } = state;
+  return tracer.startActiveSpan('commit_story.journal.generate_dialogue', async (span) => {
+    try {
+      span.setAttribute('commit_story.ai.section_type', 'dialogue');
+      span.setAttribute('gen_ai.operation.name', 'chat');
+      span.setAttribute('gen_ai.request.temperature', NODE_TEMPERATURES.dialogue);
 
-    // Early exit: skip AI call when no substantial user messages (v1 pattern)
-    const substantialUserMessages = context.metadata?.filterStats?.substantialUserMessages ?? 0;
-    if (substantialUserMessages === 0) {
-      return { dialogue: 'No significant dialogue found for this development session' };
-    }
+      const { context, summary } = state;
 
-    const guidelines = getAllGuidelines();
+      // Early exit: skip AI call when no substantial user messages (v1 pattern)
+      const substantialUserMessages = context.metadata?.filterStats?.substantialUserMessages ?? 0;
+      if (substantialUserMessages === 0) {
+        span.setAttribute('commit_story.context.messages_count', 0);
+        return { dialogue: 'No significant dialogue found for this development session' };
+      }
 
-    // Dynamic maxQuotes: 8% of substantial user messages + 1 (v1 formula)
-    const maxQuotes = Math.min(Math.ceil(substantialUserMessages * 0.08) + 1, 15);
+      span.setAttribute('commit_story.context.messages_count', substantialUserMessages);
 
-    // Replace {maxQuotes} placeholder in prompt
-    const sectionPrompt = dialoguePrompt.replace(/{maxQuotes}/g, String(maxQuotes));
+      const guidelines = getAllGuidelines();
 
-    const systemContent = `${guidelines}
+      // Dynamic maxQuotes: 8% of substantial user messages + 1 (v1 formula)
+      const maxQuotes = Math.min(Math.ceil(substantialUserMessages * 0.08) + 1, 15);
+
+      span.setAttribute('commit_story.journal.quotes_count', maxQuotes);
+
+      // Replace {maxQuotes} placeholder in prompt
+      const sectionPrompt = dialoguePrompt.replace(/{maxQuotes}/g, String(maxQuotes));
+
+      const systemContent = `${guidelines}
 
 The summary of this development session is:
 ${summary}
 
 ${sectionPrompt}`;
 
-    const userContent = formatContextForUser(context, { includeSummary: false });
+      const userContent = formatContextForUser(context, { includeSummary: false });
 
-    const result = await getModel(NODE_TEMPERATURES.dialogue).invoke([
-      new SystemMessage(systemContent),
-      new HumanMessage(userContent),
-    ]);
+      const result = await getModel(NODE_TEMPERATURES.dialogue).invoke([
+        new SystemMessage(systemContent),
+        new HumanMessage(userContent),
+      ]);
 
-    return { dialogue: cleanDialogueOutput(result.content.trim()) };
-  } catch (error) {
-    return {
-      dialogue: '[Dialogue extraction failed]',
-      errors: [`Dialogue extraction failed: ${error.message}`],
-    };
-  }
+      return { dialogue: cleanDialogueOutput(result.content.trim()) };
+    } catch (error) {
+      return {
+        dialogue: '[Dialogue extraction failed]',
+        errors: [`Dialogue extraction failed: ${error.message}`],
+      };
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**
@@ -595,17 +630,31 @@ function getGraph() {
  * @returns {Promise<JournalSections>} Generated journal sections
  */
 export async function generateJournalSections(context) {
-  const graph = getGraph();
+  return tracer.startActiveSpan('commit_story.journal.generate_sections', async (span) => {
+    try {
+      const graph = getGraph();
 
-  const result = await graph.invoke({ context });
+      const result = await graph.invoke({ context });
 
-  return {
-    summary: result.summary || '',
-    dialogue: result.dialogue || '',
-    technicalDecisions: result.technicalDecisions || '',
-    errors: result.errors || [],
-    generatedAt: new Date(),
-  };
+      const sections = {
+        summary: result.summary || '',
+        dialogue: result.dialogue || '',
+        technicalDecisions: result.technicalDecisions || '',
+        errors: result.errors || [],
+        generatedAt: new Date(),
+      };
+
+      span.setAttribute('commit_story.journal.sections', ['summary', 'dialogue', 'technical_decisions']);
+
+      return sections;
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 // Export node functions and helpers for testing

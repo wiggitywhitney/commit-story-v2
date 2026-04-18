@@ -1,12 +1,15 @@
 // ABOUTME: LangGraph StateGraphs for summary generation (daily, weekly, monthly — separate from per-commit journal-graph)
 // ABOUTME: Daily: Narrative, Key Decisions, Open Threads; Weekly: Week in Review, Highlights, Patterns; Monthly: Month in Review, Accomplishments, Growth, Looking Ahead
 
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
 import { ChatAnthropic } from '@langchain/anthropic';
 import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 import { dailySummaryPrompt } from './prompts/sections/daily-summary-prompt.js';
 import { weeklySummaryPrompt } from './prompts/sections/weekly-summary-prompt.js';
 import { monthlySummaryPrompt } from './prompts/sections/monthly-summary-prompt.js';
+
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Summary state definition using LangGraph Annotation API.
@@ -167,44 +170,57 @@ export function cleanDailySummaryOutput(raw) {
  * Reads journal entries and produces a consolidated daily summary.
  */
 export async function dailySummaryNode(state) {
-  const { entries, date } = state;
+  return tracer.startActiveSpan('commit_story.summarize.daily_node', async (span) => {
+    try {
+      const { entries, date } = state;
 
-  // Early exit: no entries to summarize
-  if (!entries || entries.length === 0) {
-    return {
-      narrative: 'No journal entries found for this date.',
-      keyDecisions: '',
-      openThreads: '',
-      errors: [],
-    };
-  }
+      span.setAttribute('gen_ai.provider.name', 'anthropic');
+      span.setAttribute('gen_ai.request.model', 'claude-haiku-4-5-20251001');
+      span.setAttribute('gen_ai.operation.name', 'chat');
+      span.setAttribute('gen_ai.request.max_tokens', 4096);
+      span.setAttribute('gen_ai.request.temperature', 0.7);
+      span.setAttribute('commit_story.ai.section_type', 'summary');
 
-  try {
-    const prompt = dailySummaryPrompt(entries.length);
-    const formattedEntries = formatEntriesForSummary(entries);
+      // Early exit: no entries to summarize
+      if (!entries || entries.length === 0) {
+        return {
+          narrative: 'No journal entries found for this date.',
+          keyDecisions: '',
+          openThreads: '',
+          errors: [],
+        };
+      }
 
-    const result = await getModel(0.7).invoke([
-      new SystemMessage(prompt),
-      new HumanMessage(formattedEntries),
-    ]);
+      try {
+        const prompt = dailySummaryPrompt(entries.length);
+        const formattedEntries = formatEntriesForSummary(entries);
 
-    const cleaned = cleanDailySummaryOutput(result.content);
-    const sections = parseSummarySections(cleaned);
+        const result = await getModel(0.7).invoke([
+          new SystemMessage(prompt),
+          new HumanMessage(formattedEntries),
+        ]);
 
-    return {
-      narrative: sections.narrative,
-      keyDecisions: sections.keyDecisions,
-      openThreads: sections.openThreads,
-      errors: [],
-    };
-  } catch (error) {
-    return {
-      narrative: '[Daily summary generation failed]',
-      keyDecisions: '',
-      openThreads: '',
-      errors: [`Daily summary generation failed: ${error.message}`],
-    };
-  }
+        const cleaned = cleanDailySummaryOutput(result.content);
+        const sections = parseSummarySections(cleaned);
+
+        return {
+          narrative: sections.narrative,
+          keyDecisions: sections.keyDecisions,
+          openThreads: sections.openThreads,
+          errors: [],
+        };
+      } catch (error) {
+        return {
+          narrative: '[Daily summary generation failed]',
+          keyDecisions: '',
+          openThreads: '',
+          errors: [`Daily summary generation failed: ${error.message}`],
+        };
+      }
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**
@@ -236,16 +252,28 @@ function getGraph() {
  * @returns {Promise<{ narrative: string, keyDecisions: string, openThreads: string, errors: string[], generatedAt: Date }>}
  */
 export async function generateDailySummary(entries, date) {
-  const graph = getGraph();
-  const result = await graph.invoke({ entries, date });
+  return tracer.startActiveSpan('commit_story.summarize.generate_daily', async (span) => {
+    try {
+      span.setAttribute('commit_story.journal.entry_date', date);
+      span.setAttribute('commit_story.summarize.dates_count', entries.length);
+      const graph = getGraph();
+      const result = await graph.invoke({ entries, date });
 
-  return {
-    narrative: result.narrative || '',
-    keyDecisions: result.keyDecisions || '',
-    openThreads: result.openThreads || '',
-    errors: result.errors || [],
-    generatedAt: new Date(),
-  };
+      return {
+        narrative: result.narrative || '',
+        keyDecisions: result.keyDecisions || '',
+        openThreads: result.openThreads || '',
+        errors: result.errors || [],
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -357,44 +385,57 @@ export function cleanWeeklySummaryOutput(raw) {
  * Reads daily summaries and produces a consolidated weekly summary.
  */
 export async function weeklySummaryNode(state) {
-  const { dailySummaries, weekLabel } = state;
+  return tracer.startActiveSpan('commit_story.summarize.weekly_node', async (span) => {
+    try {
+      const { dailySummaries, weekLabel } = state;
 
-  // Early exit: no daily summaries to consolidate
-  if (!dailySummaries || dailySummaries.length === 0) {
-    return {
-      weekInReview: 'No daily summaries found for this week.',
-      highlights: '',
-      patterns: '',
-      errors: [],
-    };
-  }
+      span.setAttribute('gen_ai.provider.name', 'anthropic');
+      span.setAttribute('gen_ai.request.model', 'claude-haiku-4-5-20251001');
+      span.setAttribute('gen_ai.operation.name', 'chat');
+      span.setAttribute('gen_ai.request.max_tokens', 4096);
+      span.setAttribute('gen_ai.request.temperature', 0.7);
+      span.setAttribute('commit_story.ai.section_type', 'summary');
 
-  try {
-    const prompt = weeklySummaryPrompt(dailySummaries.length);
-    const formattedSummaries = formatDailySummariesForWeekly(dailySummaries);
+      // Early exit: no daily summaries to consolidate
+      if (!dailySummaries || dailySummaries.length === 0) {
+        return {
+          weekInReview: 'No daily summaries found for this week.',
+          highlights: '',
+          patterns: '',
+          errors: [],
+        };
+      }
 
-    const result = await getModel(0.7).invoke([
-      new SystemMessage(prompt),
-      new HumanMessage(formattedSummaries),
-    ]);
+      try {
+        const prompt = weeklySummaryPrompt(dailySummaries.length);
+        const formattedSummaries = formatDailySummariesForWeekly(dailySummaries);
 
-    const cleaned = cleanWeeklySummaryOutput(result.content);
-    const sections = parseWeeklySummarySections(cleaned);
+        const result = await getModel(0.7).invoke([
+          new SystemMessage(prompt),
+          new HumanMessage(formattedSummaries),
+        ]);
 
-    return {
-      weekInReview: sections.weekInReview,
-      highlights: sections.highlights,
-      patterns: sections.patterns,
-      errors: [],
-    };
-  } catch (error) {
-    return {
-      weekInReview: '[Weekly summary generation failed]',
-      highlights: '',
-      patterns: '',
-      errors: [`Weekly summary generation failed: ${error.message}`],
-    };
-  }
+        const cleaned = cleanWeeklySummaryOutput(result.content);
+        const sections = parseWeeklySummarySections(cleaned);
+
+        return {
+          weekInReview: sections.weekInReview,
+          highlights: sections.highlights,
+          patterns: sections.patterns,
+          errors: [],
+        };
+      } catch (error) {
+        return {
+          weekInReview: '[Weekly summary generation failed]',
+          highlights: '',
+          patterns: '',
+          errors: [`Weekly summary generation failed: ${error.message}`],
+        };
+      }
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**
@@ -426,16 +467,28 @@ function getWeeklyGraph() {
  * @returns {Promise<{ weekInReview: string, highlights: string, patterns: string, errors: string[], generatedAt: Date }>}
  */
 export async function generateWeeklySummary(dailySummaries, weekLabel) {
-  const graph = getWeeklyGraph();
-  const result = await graph.invoke({ dailySummaries, weekLabel });
+  return tracer.startActiveSpan('commit_story.summarize.generate_weekly', async (span) => {
+    try {
+      span.setAttribute('commit_story.summarize.week_label', weekLabel);
+      span.setAttribute('commit_story.summarize.dates_count', dailySummaries.length);
+      const graph = getWeeklyGraph();
+      const result = await graph.invoke({ dailySummaries, weekLabel });
 
-  return {
-    weekInReview: result.weekInReview || '',
-    highlights: result.highlights || '',
-    patterns: result.patterns || '',
-    errors: result.errors || [],
-    generatedAt: new Date(),
-  };
+      return {
+        weekInReview: result.weekInReview || '',
+        highlights: result.highlights || '',
+        patterns: result.patterns || '',
+        errors: result.errors || [],
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -549,47 +602,60 @@ export function cleanMonthlySummaryOutput(raw) {
  * Reads weekly summaries and produces a consolidated monthly summary.
  */
 export async function monthlySummaryNode(state) {
-  const { weeklySummaries, monthLabel } = state;
+  return tracer.startActiveSpan('commit_story.summarize.monthly_node', async (span) => {
+    try {
+      const { weeklySummaries, monthLabel } = state;
 
-  // Early exit: no weekly summaries to consolidate
-  if (!weeklySummaries || weeklySummaries.length === 0) {
-    return {
-      monthInReview: 'No weekly summaries found for this month.',
-      accomplishments: '',
-      growth: '',
-      lookingAhead: '',
-      errors: [],
-    };
-  }
+      span.setAttribute('gen_ai.provider.name', 'anthropic');
+      span.setAttribute('gen_ai.request.model', 'claude-haiku-4-5-20251001');
+      span.setAttribute('gen_ai.operation.name', 'chat');
+      span.setAttribute('gen_ai.request.max_tokens', 4096);
+      span.setAttribute('gen_ai.request.temperature', 0.7);
+      span.setAttribute('commit_story.ai.section_type', 'summary');
 
-  try {
-    const prompt = monthlySummaryPrompt(weeklySummaries.length);
-    const formattedSummaries = formatWeeklySummariesForMonthly(weeklySummaries);
+      // Early exit: no weekly summaries to consolidate
+      if (!weeklySummaries || weeklySummaries.length === 0) {
+        return {
+          monthInReview: 'No weekly summaries found for this month.',
+          accomplishments: '',
+          growth: '',
+          lookingAhead: '',
+          errors: [],
+        };
+      }
 
-    const result = await getModel(0.7).invoke([
-      new SystemMessage(prompt),
-      new HumanMessage(formattedSummaries),
-    ]);
+      try {
+        const prompt = monthlySummaryPrompt(weeklySummaries.length);
+        const formattedSummaries = formatWeeklySummariesForMonthly(weeklySummaries);
 
-    const cleaned = cleanMonthlySummaryOutput(result.content);
-    const sections = parseMonthlySummarySections(cleaned);
+        const result = await getModel(0.7).invoke([
+          new SystemMessage(prompt),
+          new HumanMessage(formattedSummaries),
+        ]);
 
-    return {
-      monthInReview: sections.monthInReview,
-      accomplishments: sections.accomplishments,
-      growth: sections.growth,
-      lookingAhead: sections.lookingAhead,
-      errors: [],
-    };
-  } catch (error) {
-    return {
-      monthInReview: '[Monthly summary generation failed]',
-      accomplishments: '',
-      growth: '',
-      lookingAhead: '',
-      errors: [`Monthly summary generation failed: ${error.message}`],
-    };
-  }
+        const cleaned = cleanMonthlySummaryOutput(result.content);
+        const sections = parseMonthlySummarySections(cleaned);
+
+        return {
+          monthInReview: sections.monthInReview,
+          accomplishments: sections.accomplishments,
+          growth: sections.growth,
+          lookingAhead: sections.lookingAhead,
+          errors: [],
+        };
+      } catch (error) {
+        return {
+          monthInReview: '[Monthly summary generation failed]',
+          accomplishments: '',
+          growth: '',
+          lookingAhead: '',
+          errors: [`Monthly summary generation failed: ${error.message}`],
+        };
+      }
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**
@@ -621,15 +687,27 @@ function getMonthlyGraph() {
  * @returns {Promise<{ monthInReview: string, accomplishments: string, growth: string, lookingAhead: string, errors: string[], generatedAt: Date }>}
  */
 export async function generateMonthlySummary(weeklySummaries, monthLabel) {
-  const graph = getMonthlyGraph();
-  const result = await graph.invoke({ weeklySummaries, monthLabel });
+  return tracer.startActiveSpan('commit_story.summarize.generate_monthly', async (span) => {
+    try {
+      span.setAttribute('commit_story.summarize.month_label', monthLabel);
+      span.setAttribute('commit_story.summarize.weeks_count', weeklySummaries.length);
+      const graph = getMonthlyGraph();
+      const result = await graph.invoke({ weeklySummaries, monthLabel });
 
-  return {
-    monthInReview: result.monthInReview || '',
-    accomplishments: result.accomplishments || '',
-    growth: result.growth || '',
-    lookingAhead: result.lookingAhead || '',
-    errors: result.errors || [],
-    generatedAt: new Date(),
-  };
+      return {
+        monthInReview: result.monthInReview || '',
+        accomplishments: result.accomplishments || '',
+        growth: result.growth || '',
+        lookingAhead: result.lookingAhead || '',
+        errors: result.errors || [],
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
