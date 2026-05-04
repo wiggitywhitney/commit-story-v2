@@ -1,9 +1,12 @@
 // ABOUTME: Detects journal days/weeks/months that have content but no summary
 // ABOUTME: Scans entries and summaries directories to find gaps for auto-trigger
 
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getISOWeekString, getYearMonth } from './journal-paths.js';
+
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Get the current date string in the configured timezone.
@@ -55,38 +58,45 @@ function getNowDate() {
  * @returns {Promise<string[]>} Sorted array of date strings (YYYY-MM-DD)
  */
 export async function getDaysWithEntries(basePath = '.') {
-  const entriesDir = join(basePath, 'journal', 'entries');
-  const datePattern = /^\d{4}-\d{2}-\d{2}\.md$/;
-
-  let monthDirs;
-  try {
-    monthDirs = await readdir(entriesDir);
-  } catch {
-    return [];
-  }
-
-  const dates = [];
-
-  for (const monthDir of monthDirs) {
-    // Only process YYYY-MM directories
-    if (!/^\d{4}-\d{2}$/.test(monthDir)) continue;
-
-    let files;
+  return tracer.startActiveSpan('commit_story.summary.get_days_with_entries', async (span) => {
     try {
-      files = await readdir(join(entriesDir, monthDir));
-    } catch {
-      continue;
-    }
+      const entriesDir = join(basePath, 'journal', 'entries');
+      const datePattern = /^\d{4}-\d{2}-\d{2}\.md$/;
 
-    for (const file of files) {
-      if (datePattern.test(file)) {
-        dates.push(file.replace('.md', ''));
+      let monthDirs;
+      try {
+        monthDirs = await readdir(entriesDir);
+      } catch {
+        return [];
       }
-    }
-  }
 
-  dates.sort();
-  return dates;
+      const dates = [];
+
+      for (const monthDir of monthDirs) {
+        // Only process YYYY-MM directories
+        if (!/^\d{4}-\d{2}$/.test(monthDir)) continue;
+
+        let files;
+        try {
+          files = await readdir(join(entriesDir, monthDir));
+        } catch {
+          continue;
+        }
+
+        for (const file of files) {
+          if (datePattern.test(file)) {
+            dates.push(file.replace('.md', ''));
+          }
+        }
+      }
+
+      dates.sort();
+      span.setAttribute('commit_story.summary.entries_count', dates.length);
+      return dates;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**
@@ -122,20 +132,32 @@ async function getSummarizedDays(basePath = '.') {
  * @returns {Promise<string[]>} Sorted array of unsummarized date strings
  */
 export async function findUnsummarizedDays(basePath = '.', options = {}) {
-  const entryDays = await getDaysWithEntries(basePath);
-  if (entryDays.length === 0) return [];
+  return tracer.startActiveSpan('commit_story.summary.find_unsummarized_days', async (span) => {
+    try {
+      const entryDays = await getDaysWithEntries(basePath);
+      if (entryDays.length === 0) return [];
 
-  const summarizedDays = await getSummarizedDays(basePath);
-  const today = getTodayString();
+      const summarizedDays = await getSummarizedDays(basePath);
+      const today = getTodayString();
 
-  return entryDays.filter(dateStr => {
-    // Exclude today — not yet complete
-    if (dateStr >= today) return false;
-    // Exclude dates at or after the cutoff
-    if (options.before && dateStr >= options.before) return false;
-    // Exclude already summarized
-    if (summarizedDays.has(dateStr)) return false;
-    return true;
+      const result = entryDays.filter(dateStr => {
+        // Exclude today — not yet complete
+        if (dateStr >= today) return false;
+        // Exclude dates at or after the cutoff
+        if (options.before && dateStr >= options.before) return false;
+        // Exclude already summarized
+        if (summarizedDays.has(dateStr)) return false;
+        return true;
+      });
+      span.setAttribute('commit_story.summarize.dates_count', result.length);
+      return result;
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
   });
 }
 
@@ -170,24 +192,31 @@ async function getSummarizedWeeks(basePath = '.') {
  * @returns {Promise<string[]>} Sorted array of date strings (YYYY-MM-DD)
  */
 export async function getDaysWithDailySummaries(basePath = '.') {
-  const summariesDir = join(basePath, 'journal', 'summaries', 'daily');
-  const datePattern = /^\d{4}-\d{2}-\d{2}\.md$/;
+  return tracer.startActiveSpan('commit_story.summary.get_days_with_daily_summaries', async (span) => {
+    try {
+      const summariesDir = join(basePath, 'journal', 'summaries', 'daily');
+      const datePattern = /^\d{4}-\d{2}-\d{2}\.md$/;
 
-  let files;
-  try {
-    files = await readdir(summariesDir);
-  } catch {
-    return [];
-  }
+      let files;
+      try {
+        files = await readdir(summariesDir);
+      } catch {
+        return [];
+      }
 
-  const dates = [];
-  for (const file of files) {
-    if (datePattern.test(file)) {
-      dates.push(file.replace('.md', ''));
+      const dates = [];
+      for (const file of files) {
+        if (datePattern.test(file)) {
+          dates.push(file.replace('.md', ''));
+        }
+      }
+      dates.sort();
+      span.setAttribute('commit_story.summary.entries_count', dates.length);
+      return dates;
+    } finally {
+      span.end();
     }
-  }
-  dates.sort();
-  return dates;
+  });
 }
 
 /**
@@ -198,35 +227,46 @@ export async function getDaysWithDailySummaries(basePath = '.') {
  * @returns {Promise<string[]>} Sorted array of unsummarized ISO week strings
  */
 export async function findUnsummarizedWeeks(basePath = '.') {
-  const dailySummaryDates = await getDaysWithDailySummaries(basePath);
-  if (dailySummaryDates.length === 0) return [];
+  return tracer.startActiveSpan('commit_story.summary.find_unsummarized_weeks', async (span) => {
+    try {
+      const dailySummaryDates = await getDaysWithDailySummaries(basePath);
+      if (dailySummaryDates.length === 0) return [];
 
-  // Group daily summary dates into ISO weeks
-  const weeksWithSummaries = new Set();
-  for (const dateStr of dailySummaryDates) {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    const weekStr = getISOWeekString(date);
-    weeksWithSummaries.add(weekStr);
-  }
+      // Group daily summary dates into ISO weeks
+      const weeksWithSummaries = new Set();
+      for (const dateStr of dailySummaryDates) {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        const weekStr = getISOWeekString(date);
+        weeksWithSummaries.add(weekStr);
+      }
 
-  // Get current week to exclude it (timezone-aware)
-  const currentWeek = getISOWeekString(getNowDate());
+      // Get current week to exclude it (timezone-aware)
+      const currentWeek = getISOWeekString(getNowDate());
 
-  // Check which weeks already have weekly summaries
-  const summarizedWeeks = await getSummarizedWeeks(basePath);
+      // Check which weeks already have weekly summaries
+      const summarizedWeeks = await getSummarizedWeeks(basePath);
 
-  const unsummarized = [];
-  for (const weekStr of weeksWithSummaries) {
-    // Exclude current week — not yet complete
-    if (weekStr >= currentWeek) continue;
-    // Exclude already summarized
-    if (summarizedWeeks.has(weekStr)) continue;
-    unsummarized.push(weekStr);
-  }
+      const unsummarized = [];
+      for (const weekStr of weeksWithSummaries) {
+        // Exclude current week — not yet complete
+        if (weekStr >= currentWeek) continue;
+        // Exclude already summarized
+        if (summarizedWeeks.has(weekStr)) continue;
+        unsummarized.push(weekStr);
+      }
 
-  unsummarized.sort();
-  return unsummarized;
+      unsummarized.sort();
+      span.setAttribute('commit_story.summarize.weeks_count', unsummarized.length);
+      return unsummarized;
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**
@@ -288,45 +328,56 @@ async function getWeeksWithWeeklySummaries(basePath = '.') {
  * @returns {Promise<string[]>} Sorted array of unsummarized month strings (YYYY-MM)
  */
 export async function findUnsummarizedMonths(basePath = '.') {
-  const weekLabels = await getWeeksWithWeeklySummaries(basePath);
-  if (weekLabels.length === 0) return [];
+  return tracer.startActiveSpan('commit_story.summary.find_unsummarized_months', async (span) => {
+    try {
+      const weekLabels = await getWeeksWithWeeklySummaries(basePath);
+      if (weekLabels.length === 0) return [];
 
-  // Map week labels to their Monday's month
-  const monthsWithWeeklies = new Set();
-  for (const weekLabel of weekLabels) {
-    const match = weekLabel.match(/^(\d{4})-W(\d{2})$/);
-    if (!match) continue;
+      // Map week labels to their Monday's month
+      const monthsWithWeeklies = new Set();
+      for (const weekLabel of weekLabels) {
+        const match = weekLabel.match(/^(\d{4})-W(\d{2})$/);
+        if (!match) continue;
 
-    const [, yearStr, weekNumStr] = match;
-    const year = parseInt(yearStr);
-    const week = parseInt(weekNumStr);
+        const [, yearStr, weekNumStr] = match;
+        const year = parseInt(yearStr);
+        const week = parseInt(weekNumStr);
 
-    // Calculate the Monday of this ISO week
-    const jan4 = new Date(year, 0, 4);
-    const jan4Day = jan4.getDay() || 7;
-    const week1Monday = new Date(jan4);
-    week1Monday.setDate(jan4.getDate() - (jan4Day - 1));
+        // Calculate the Monday of this ISO week
+        const jan4 = new Date(year, 0, 4);
+        const jan4Day = jan4.getDay() || 7;
+        const week1Monday = new Date(jan4);
+        week1Monday.setDate(jan4.getDate() - (jan4Day - 1));
 
-    const monday = new Date(week1Monday);
-    monday.setDate(week1Monday.getDate() + (week - 1) * 7);
+        const monday = new Date(week1Monday);
+        monday.setDate(week1Monday.getDate() + (week - 1) * 7);
 
-    const monthStr = getYearMonth(monday);
-    monthsWithWeeklies.add(monthStr);
-  }
+        const monthStr = getYearMonth(monday);
+        monthsWithWeeklies.add(monthStr);
+      }
 
-  // Get current month to exclude it (timezone-aware)
-  const currentMonth = getYearMonth(getNowDate());
+      // Get current month to exclude it (timezone-aware)
+      const currentMonth = getYearMonth(getNowDate());
 
-  // Check which months already have monthly summaries
-  const summarizedMonths = await getSummarizedMonths(basePath);
+      // Check which months already have monthly summaries
+      const summarizedMonths = await getSummarizedMonths(basePath);
 
-  const unsummarized = [];
-  for (const monthStr of monthsWithWeeklies) {
-    if (monthStr >= currentMonth) continue;
-    if (summarizedMonths.has(monthStr)) continue;
-    unsummarized.push(monthStr);
-  }
+      const unsummarized = [];
+      for (const monthStr of monthsWithWeeklies) {
+        if (monthStr >= currentMonth) continue;
+        if (summarizedMonths.has(monthStr)) continue;
+        unsummarized.push(monthStr);
+      }
 
-  unsummarized.sort();
-  return unsummarized;
+      unsummarized.sort();
+      span.setAttribute('commit_story.summarize.months_count', unsummarized.length);
+      return unsummarized;
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }

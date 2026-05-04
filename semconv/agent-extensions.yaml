@@ -213,3 +213,28 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.journal.ensure_directory"
     span_kind: internal
+  - id: span.commit_story.summary.get_days_with_entries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.get_days_with_entries"
+    span_kind: internal
+  - id: span.commit_story.summary.find_unsummarized_days
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.find_unsummarized_days"
+    span_kind: internal
+  - id: span.commit_story.summary.get_days_with_daily_summaries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.get_days_with_daily_summaries"
+    span_kind: internal
+  - id: span.commit_story.summary.find_unsummarized_weeks
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.find_unsummarized_weeks"
+    span_kind: internal
+  - id: span.commit_story.summary.find_unsummarized_months
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.find_unsummarized_months"
+    span_kind: internal
