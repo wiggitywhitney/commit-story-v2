@@ -5,6 +5,7 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { resourceFromAttributes } from '@opentelemetry/resources';
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -30,6 +31,7 @@ const sdk = new NodeSDK({
     'service.name': 'commit-story',
     'service.version': pkg.version,
     'deployment.environment': process.env.NODE_ENV || 'development',
+    'service.instance.id': randomUUID(),
   }),
   // SimpleSpanProcessor exports each span immediately on span.end() — better
   // for CLI apps where process.exit() can kill the event loop before a
