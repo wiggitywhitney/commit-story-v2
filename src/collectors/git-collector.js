@@ -5,10 +5,12 @@
  * to prevent context pollution in AI generation.
  */
 
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Run a git command and return stdout
@@ -117,14 +119,27 @@ async function getMergeInfo(commitRef = 'HEAD') {
  * @returns {Promise<Date|null>} - Previous commit timestamp, null if first commit
  */
 export async function getPreviousCommitTime(commitRef = 'HEAD') {
-  const output = await runGit(['log', '-2', '--format=%aI', commitRef]);
-  const timestamps = output.trim().split('\n');
+  return tracer.startActiveSpan('commit_story.git.get_previous_commit_time', async (span) => {
+    try {
+      span.setAttribute('vcs.ref.head.revision', commitRef);
+      const output = await runGit(['log', '-2', '--format=%aI', commitRef]);
+      const timestamps = output.trim().split('\n');
 
-  if (timestamps.length < 2) {
-    return null; // First commit, no previous
-  }
+      if (timestamps.length < 2) {
+        return null; // First commit, no previous
+      }
 
-  return new Date(timestamps[1]);
+      const result = new Date(timestamps[1]);
+      span.setAttribute('commit_story.commit.timestamp', result.toISOString());
+      return result;
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**
@@ -133,15 +148,29 @@ export async function getPreviousCommitTime(commitRef = 'HEAD') {
  * @returns {Promise<CommitData>}
  */
 export async function getCommitData(commitRef = 'HEAD') {
-  const [metadata, diff, mergeInfo] = await Promise.all([
-    getCommitMetadata(commitRef),
-    getCommitDiff(commitRef),
-    getMergeInfo(commitRef),
-  ]);
+  return tracer.startActiveSpan('commit_story.git.get_commit_data', async (span) => {
+    try {
+      span.setAttribute('vcs.ref.head.revision', commitRef);
+      const [metadata, diff, mergeInfo] = await Promise.all([
+        getCommitMetadata(commitRef),
+        getCommitDiff(commitRef),
+        getMergeInfo(commitRef),
+      ]);
 
-  return {
-    ...metadata,
-    diff,
-    ...mergeInfo,
-  };
+      span.setAttribute('commit_story.commit.message', metadata.subject);
+      span.setAttribute('commit_story.commit.timestamp', metadata.timestamp.toISOString());
+
+      return {
+        ...metadata,
+        diff,
+        ...mergeInfo,
+      };
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
