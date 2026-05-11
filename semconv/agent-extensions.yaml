@@ -9,3 +9,18 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.git.get_previous_commit_time"
     span_kind: internal
+  - id: span.commit_story.ai.generate_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_summary"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_dialogue
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_dialogue"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_journal_sections
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_journal_sections"
+    span_kind: internal
