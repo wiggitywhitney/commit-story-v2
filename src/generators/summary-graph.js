@@ -7,6 +7,9 @@ import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 import { dailySummaryPrompt } from './prompts/sections/daily-summary-prompt.js';
 import { weeklySummaryPrompt } from './prompts/sections/weekly-summary-prompt.js';
 import { monthlySummaryPrompt } from './prompts/sections/monthly-summary-prompt.js';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Summary state definition using LangGraph Annotation API.
@@ -49,7 +52,7 @@ export function getModel(temperature = 0.7) {
         model: 'claude-haiku-4-5-20251001',
         maxTokens: 4096,
         temperature,
-      })
+      }),
     );
   }
   return models.get(temperature);
@@ -74,13 +77,14 @@ export function formatEntriesForSummary(entries) {
   }
 
   const count = entries.length;
-  const header = count === 1
-    ? `The following is 1 journal entry from this day:`
-    : `The following are ${count} journal entries from this day:`;
+  const header =
+    count === 1
+      ? `The following is 1 journal entry from this day:`
+      : `The following are ${count} journal entries from this day:`;
 
-  const numbered = entries.map((entry, i) =>
-    `--- Entry ${i + 1} of ${count} ---\n\n${entry}`
-  ).join('\n\n');
+  const numbered = entries
+    .map((entry, i) => `--- Entry ${i + 1} of ${count} ---\n\n${entry}`)
+    .join('\n\n');
 
   return `${header}\n\n${numbered}`;
 }
@@ -124,23 +128,38 @@ function parseSummarySections(raw) {
  * Reuses the same banned word list as journal-graph.
  */
 const BANNED_WORD_REPLACEMENTS = [
-  [/\bcomprehensiv(e|ely)\b/gi, (_, suffix) => suffix === 'ely' ? 'thoroughly' : 'detailed'],
+  [
+    /\bcomprehensiv(e|ely)\b/gi,
+    (_, suffix) => (suffix === 'ely' ? 'thoroughly' : 'detailed'),
+  ],
   [/\brobust\b/gi, 'solid'],
   [/\bsignificant\b/gi, 'important'],
-  [/\bsystematic(ally)?\b/gi, (_, suffix) => suffix ? 'carefully' : 'structured'],
-  [/\bmeticulous(ly)?\b/gi, (_, suffix) => suffix ? 'carefully' : 'careful'],
-  [/\bmethodical(ly)?\b/gi, (_, suffix) => suffix ? 'carefully' : 'careful'],
+  [
+    /\bsystematic(ally)?\b/gi,
+    (_, suffix) => (suffix ? 'carefully' : 'structured'),
+  ],
+  [/\bmeticulous(ly)?\b/gi, (_, suffix) => (suffix ? 'carefully' : 'careful')],
+  [/\bmethodical(ly)?\b/gi, (_, suffix) => (suffix ? 'carefully' : 'careful')],
   [/\ba sophisticated\b/gi, 'an advanced'],
   [/\bsophisticated\b/gi, 'advanced'],
-  [/\bleverag(e[ds]?|ing)\b/gi, (_, suffix) => suffix === 'ing' ? 'using' : 'used'],
+  [
+    /\bleverag(e[ds]?|ing)\b/gi,
+    (_, suffix) => (suffix === 'ing' ? 'using' : 'used'),
+  ],
   [/\benhance[ds]?\b/gi, 'improved'],
   [/\benhancing\b/gi, 'improving'],
-  [/\benhancements?\b/gi, (match) => match.endsWith('s') ? 'improvements' : 'improvement'],
-  [/\butiliz(e[ds]?|ing|ation)\b/gi, (_, suffix) => {
-    if (suffix === 'ing') return 'using';
-    if (suffix === 'ation') return 'use';
-    return 'used';
-  }],
+  [
+    /\benhancements?\b/gi,
+    (match) => (match.endsWith('s') ? 'improvements' : 'improvement'),
+  ],
+  [
+    /\butiliz(e[ds]?|ing|ation)\b/gi,
+    (_, suffix) => {
+      if (suffix === 'ing') return 'using';
+      if (suffix === 'ation') return 'use';
+      return 'used';
+    },
+  ],
 ];
 
 export function cleanDailySummaryOutput(raw) {
@@ -167,44 +186,64 @@ export function cleanDailySummaryOutput(raw) {
  * Reads journal entries and produces a consolidated daily summary.
  */
 export async function dailySummaryNode(state) {
-  const { entries, date } = state;
+  return tracer.startActiveSpan(
+    'commit_story.ai.generate_daily_summary',
+    async (span) => {
+      try {
+        const { entries, date } = state;
 
-  // Early exit: no entries to summarize
-  if (!entries || entries.length === 0) {
-    return {
-      narrative: 'No journal entries found for this date.',
-      keyDecisions: '',
-      openThreads: '',
-      errors: [],
-    };
-  }
+        span.setAttribute('commit_story.ai.section_type', 'summary');
+        if (date != null) {
+          span.setAttribute('commit_story.journal.entry_date', String(date));
+        }
 
-  try {
-    const prompt = dailySummaryPrompt(entries.length);
-    const formattedEntries = formatEntriesForSummary(entries);
+        // Early exit: no entries to summarize
+        if (!entries || entries.length === 0) {
+          return {
+            narrative: 'No journal entries found for this date.',
+            keyDecisions: '',
+            openThreads: '',
+            errors: [],
+          };
+        }
 
-    const result = await getModel(0.7).invoke([
-      new SystemMessage(prompt),
-      new HumanMessage(formattedEntries),
-    ]);
+        span.setAttribute('commit_story.journal.entries_count', entries.length);
 
-    const cleaned = cleanDailySummaryOutput(result.content);
-    const sections = parseSummarySections(cleaned);
+        try {
+          const prompt = dailySummaryPrompt(entries.length);
+          const formattedEntries = formatEntriesForSummary(entries);
 
-    return {
-      narrative: sections.narrative,
-      keyDecisions: sections.keyDecisions,
-      openThreads: sections.openThreads,
-      errors: [],
-    };
-  } catch (error) {
-    return {
-      narrative: '[Daily summary generation failed]',
-      keyDecisions: '',
-      openThreads: '',
-      errors: [`Daily summary generation failed: ${error.message}`],
-    };
-  }
+          const result = await getModel(0.7).invoke([
+            new SystemMessage(prompt),
+            new HumanMessage(formattedEntries),
+          ]);
+
+          const cleaned = cleanDailySummaryOutput(result.content);
+          const sections = parseSummarySections(cleaned);
+
+          return {
+            narrative: sections.narrative,
+            keyDecisions: sections.keyDecisions,
+            openThreads: sections.openThreads,
+            errors: [],
+          };
+        } catch (error) {
+          return {
+            narrative: '[Daily summary generation failed]',
+            keyDecisions: '',
+            openThreads: '',
+            errors: [`Daily summary generation failed: ${error.message}`],
+          };
+        }
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    },
+  );
 }
 
 /**
@@ -236,16 +275,31 @@ function getGraph() {
  * @returns {Promise<{ narrative: string, keyDecisions: string, openThreads: string, errors: string[], generatedAt: Date }>}
  */
 export async function generateDailySummary(entries, date) {
-  const graph = getGraph();
-  const result = await graph.invoke({ entries, date });
+  return tracer.startActiveSpan(
+    'commit_story.journal.generate_daily_summary',
+    async (span) => {
+      try {
+        span.setAttribute('commit_story.journal.entry_date', date);
+        span.setAttribute('commit_story.journal.entries_count', entries.length);
+        const graph = getGraph();
+        const result = await graph.invoke({ entries, date });
 
-  return {
-    narrative: result.narrative || '',
-    keyDecisions: result.keyDecisions || '',
-    openThreads: result.openThreads || '',
-    errors: result.errors || [],
-    generatedAt: new Date(),
-  };
+        return {
+          narrative: result.narrative || '',
+          keyDecisions: result.keyDecisions || '',
+          openThreads: result.openThreads || '',
+          errors: result.errors || [],
+          generatedAt: new Date(),
+        };
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -286,13 +340,17 @@ export function formatDailySummariesForWeekly(dailySummaries) {
   }
 
   const count = dailySummaries.length;
-  const header = count === 1
-    ? `The following is 1 daily summary from this week:`
-    : `The following are ${count} daily summaries from this week:`;
+  const header =
+    count === 1
+      ? `The following is 1 daily summary from this week:`
+      : `The following are ${count} daily summaries from this week:`;
 
-  const formatted = dailySummaries.map((summary, i) =>
-    `--- Day ${i + 1} of ${count}: ${summary.date} ---\n\n${summary.content}`
-  ).join('\n\n');
+  const formatted = dailySummaries
+    .map(
+      (summary, i) =>
+        `--- Day ${i + 1} of ${count}: ${summary.date} ---\n\n${summary.content}`,
+    )
+    .join('\n\n');
 
   return `${header}\n\n${formatted}`;
 }
@@ -357,44 +415,65 @@ export function cleanWeeklySummaryOutput(raw) {
  * Reads daily summaries and produces a consolidated weekly summary.
  */
 export async function weeklySummaryNode(state) {
-  const { dailySummaries, weekLabel } = state;
+  return tracer.startActiveSpan(
+    'commit_story.ai.generate_weekly_summary',
+    async (span) => {
+      try {
+        const { dailySummaries, weekLabel } = state;
 
-  // Early exit: no daily summaries to consolidate
-  if (!dailySummaries || dailySummaries.length === 0) {
-    return {
-      weekInReview: 'No daily summaries found for this week.',
-      highlights: '',
-      patterns: '',
-      errors: [],
-    };
-  }
+        span.setAttribute('commit_story.ai.section_type', 'summary');
 
-  try {
-    const prompt = weeklySummaryPrompt(dailySummaries.length);
-    const formattedSummaries = formatDailySummariesForWeekly(dailySummaries);
+        // Early exit: no daily summaries to consolidate
+        if (!dailySummaries || dailySummaries.length === 0) {
+          return {
+            weekInReview: 'No daily summaries found for this week.',
+            highlights: '',
+            patterns: '',
+            errors: [],
+          };
+        }
 
-    const result = await getModel(0.7).invoke([
-      new SystemMessage(prompt),
-      new HumanMessage(formattedSummaries),
-    ]);
+        span.setAttribute(
+          'commit_story.journal.entries_count',
+          dailySummaries.length,
+        );
 
-    const cleaned = cleanWeeklySummaryOutput(result.content);
-    const sections = parseWeeklySummarySections(cleaned);
+        try {
+          const prompt = weeklySummaryPrompt(dailySummaries.length);
+          const formattedSummaries =
+            formatDailySummariesForWeekly(dailySummaries);
 
-    return {
-      weekInReview: sections.weekInReview,
-      highlights: sections.highlights,
-      patterns: sections.patterns,
-      errors: [],
-    };
-  } catch (error) {
-    return {
-      weekInReview: '[Weekly summary generation failed]',
-      highlights: '',
-      patterns: '',
-      errors: [`Weekly summary generation failed: ${error.message}`],
-    };
-  }
+          const result = await getModel(0.7).invoke([
+            new SystemMessage(prompt),
+            new HumanMessage(formattedSummaries),
+          ]);
+
+          const cleaned = cleanWeeklySummaryOutput(result.content);
+          const sections = parseWeeklySummarySections(cleaned);
+
+          return {
+            weekInReview: sections.weekInReview,
+            highlights: sections.highlights,
+            patterns: sections.patterns,
+            errors: [],
+          };
+        } catch (error) {
+          return {
+            weekInReview: '[Weekly summary generation failed]',
+            highlights: '',
+            patterns: '',
+            errors: [`Weekly summary generation failed: ${error.message}`],
+          };
+        }
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    },
+  );
 }
 
 /**
@@ -426,16 +505,34 @@ function getWeeklyGraph() {
  * @returns {Promise<{ weekInReview: string, highlights: string, patterns: string, errors: string[], generatedAt: Date }>}
  */
 export async function generateWeeklySummary(dailySummaries, weekLabel) {
-  const graph = getWeeklyGraph();
-  const result = await graph.invoke({ dailySummaries, weekLabel });
+  return tracer.startActiveSpan(
+    'commit_story.journal.generate_weekly_summary',
+    async (span) => {
+      try {
+        span.setAttribute(
+          'commit_story.journal.entries_count',
+          dailySummaries.length,
+        );
+        span.setAttribute('commit_story.journal.week_label', weekLabel);
+        const graph = getWeeklyGraph();
+        const result = await graph.invoke({ dailySummaries, weekLabel });
 
-  return {
-    weekInReview: result.weekInReview || '',
-    highlights: result.highlights || '',
-    patterns: result.patterns || '',
-    errors: result.errors || [],
-    generatedAt: new Date(),
-  };
+        return {
+          weekInReview: result.weekInReview || '',
+          highlights: result.highlights || '',
+          patterns: result.patterns || '',
+          errors: result.errors || [],
+          generatedAt: new Date(),
+        };
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -477,13 +574,17 @@ export function formatWeeklySummariesForMonthly(weeklySummaries) {
   }
 
   const count = weeklySummaries.length;
-  const header = count === 1
-    ? `The following is 1 weekly summary from this month:`
-    : `The following are ${count} weekly summaries from this month:`;
+  const header =
+    count === 1
+      ? `The following is 1 weekly summary from this month:`
+      : `The following are ${count} weekly summaries from this month:`;
 
-  const formatted = weeklySummaries.map((summary, i) =>
-    `--- Week ${i + 1} of ${count}: ${summary.weekLabel} ---\n\n${summary.content}`
-  ).join('\n\n');
+  const formatted = weeklySummaries
+    .map(
+      (summary, i) =>
+        `--- Week ${i + 1} of ${count}: ${summary.weekLabel} ---\n\n${summary.content}`,
+    )
+    .join('\n\n');
 
   return `${header}\n\n${formatted}`;
 }
@@ -495,10 +596,16 @@ export function formatWeeklySummariesForMonthly(weeklySummaries) {
  * @returns {{ monthInReview: string, accomplishments: string, growth: string, lookingAhead: string }}
  */
 function parseMonthlySummarySections(raw) {
-  const sections = { monthInReview: '', accomplishments: '', growth: '', lookingAhead: '' };
+  const sections = {
+    monthInReview: '',
+    accomplishments: '',
+    growth: '',
+    lookingAhead: '',
+  };
   if (!raw) return sections;
 
-  const sectionPattern = /^## (Month in Review|Accomplishments|Growth|Looking Ahead)\s*$/gm;
+  const sectionPattern =
+    /^## (Month in Review|Accomplishments|Growth|Looking Ahead)\s*$/gm;
   const matches = [...raw.matchAll(sectionPattern)];
 
   for (let i = 0; i < matches.length; i++) {
@@ -514,7 +621,12 @@ function parseMonthlySummarySections(raw) {
   }
 
   // If no sections were parsed, put everything in monthInReview
-  if (!sections.monthInReview && !sections.accomplishments && !sections.growth && !sections.lookingAhead) {
+  if (
+    !sections.monthInReview &&
+    !sections.accomplishments &&
+    !sections.growth &&
+    !sections.lookingAhead
+  ) {
     sections.monthInReview = raw.trim();
   }
 
@@ -549,47 +661,71 @@ export function cleanMonthlySummaryOutput(raw) {
  * Reads weekly summaries and produces a consolidated monthly summary.
  */
 export async function monthlySummaryNode(state) {
-  const { weeklySummaries, monthLabel } = state;
+  return tracer.startActiveSpan(
+    'commit_story.ai.generate_monthly_summary',
+    async (span) => {
+      try {
+        const { weeklySummaries, monthLabel } = state;
 
-  // Early exit: no weekly summaries to consolidate
-  if (!weeklySummaries || weeklySummaries.length === 0) {
-    return {
-      monthInReview: 'No weekly summaries found for this month.',
-      accomplishments: '',
-      growth: '',
-      lookingAhead: '',
-      errors: [],
-    };
-  }
+        if (monthLabel != null) {
+          span.setAttribute('commit_story.journal.month_label', monthLabel);
+        }
 
-  try {
-    const prompt = monthlySummaryPrompt(weeklySummaries.length);
-    const formattedSummaries = formatWeeklySummariesForMonthly(weeklySummaries);
+        // Early exit: no weekly summaries to consolidate
+        if (!weeklySummaries || weeklySummaries.length === 0) {
+          return {
+            monthInReview: 'No weekly summaries found for this month.',
+            accomplishments: '',
+            growth: '',
+            lookingAhead: '',
+            errors: [],
+          };
+        }
 
-    const result = await getModel(0.7).invoke([
-      new SystemMessage(prompt),
-      new HumanMessage(formattedSummaries),
-    ]);
+        span.setAttribute(
+          'commit_story.journal.entries_count',
+          weeklySummaries.length,
+        );
+        span.setAttribute('gen_ai.request.temperature', 0.7);
 
-    const cleaned = cleanMonthlySummaryOutput(result.content);
-    const sections = parseMonthlySummarySections(cleaned);
+        try {
+          const prompt = monthlySummaryPrompt(weeklySummaries.length);
+          const formattedSummaries =
+            formatWeeklySummariesForMonthly(weeklySummaries);
 
-    return {
-      monthInReview: sections.monthInReview,
-      accomplishments: sections.accomplishments,
-      growth: sections.growth,
-      lookingAhead: sections.lookingAhead,
-      errors: [],
-    };
-  } catch (error) {
-    return {
-      monthInReview: '[Monthly summary generation failed]',
-      accomplishments: '',
-      growth: '',
-      lookingAhead: '',
-      errors: [`Monthly summary generation failed: ${error.message}`],
-    };
-  }
+          const result = await getModel(0.7).invoke([
+            new SystemMessage(prompt),
+            new HumanMessage(formattedSummaries),
+          ]);
+
+          const cleaned = cleanMonthlySummaryOutput(result.content);
+          const sections = parseMonthlySummarySections(cleaned);
+
+          return {
+            monthInReview: sections.monthInReview,
+            accomplishments: sections.accomplishments,
+            growth: sections.growth,
+            lookingAhead: sections.lookingAhead,
+            errors: [],
+          };
+        } catch (error) {
+          return {
+            monthInReview: '[Monthly summary generation failed]',
+            accomplishments: '',
+            growth: '',
+            lookingAhead: '',
+            errors: [`Monthly summary generation failed: ${error.message}`],
+          };
+        }
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    },
+  );
 }
 
 /**
@@ -621,15 +757,33 @@ function getMonthlyGraph() {
  * @returns {Promise<{ monthInReview: string, accomplishments: string, growth: string, lookingAhead: string, errors: string[], generatedAt: Date }>}
  */
 export async function generateMonthlySummary(weeklySummaries, monthLabel) {
-  const graph = getMonthlyGraph();
-  const result = await graph.invoke({ weeklySummaries, monthLabel });
+  return tracer.startActiveSpan(
+    'commit_story.journal.generate_monthly_summary',
+    async (span) => {
+      try {
+        span.setAttribute('commit_story.journal.month_label', monthLabel);
+        span.setAttribute(
+          'commit_story.journal.entries_count',
+          weeklySummaries.length,
+        );
+        const graph = getMonthlyGraph();
+        const result = await graph.invoke({ weeklySummaries, monthLabel });
 
-  return {
-    monthInReview: result.monthInReview || '',
-    accomplishments: result.accomplishments || '',
-    growth: result.growth || '',
-    lookingAhead: result.lookingAhead || '',
-    errors: result.errors || [],
-    generatedAt: new Date(),
-  };
+        return {
+          monthInReview: result.monthInReview || '',
+          accomplishments: result.accomplishments || '',
+          growth: result.growth || '',
+          lookingAhead: result.lookingAhead || '',
+          errors: result.errors || [],
+          generatedAt: new Date(),
+        };
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    },
+  );
 }
