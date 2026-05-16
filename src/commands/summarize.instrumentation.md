@@ -4,18 +4,15 @@
 - **Status**: success
 - **Spans added**: 3
 - **Attempts**: 3 (fresh-regeneration)
-- **Input tokens**: 38.1K
-- **Output tokens**: 56.5K
-- **Cached tokens**: 45.8K
+- **Input tokens**: 35.1K
+- **Output tokens**: 47.4K
+- **Cached tokens**: 70.5K
 
 ## Schema Extensions
-- `span.commit_story.journal.run_summarize`
-- `commit_story.journal.dates_count`
-- `span.commit_story.journal.run_weekly_summarize`
-- `span.commit_story.journal.run_monthly_summarize`
-- `commit_story.journal.months_count`
-- `commit_story.journal.monthly_summaries_generated_count`
-- `commit_story.journal.monthly_summaries_failed_count`
+- `span.commit_story.summary.run_summarize`
+- `span.commit_story.summary.run_weekly_summarize`
+- `span.commit_story.summary.run_monthly_summarize`
+- `commit_story.summary.month_count`
 
 ## Function-Level Results
 
@@ -30,17 +27,20 @@
 | runMonthlySummarize | instrumented | 1 |
 
 ## Validation Journey
-1. **Attempt 1**: 13 blocking errors (NDS-003 (Code Preserved):13)
+1. **Attempt 1**: 12 blocking errors (NDS-003 (Code Preserved):12)
 2. **Attempt 2**: 3 blocking errors (NDS-003 (Code Preserved):3)
-3. **Attempt 3**: 15 blocking errors (NDS-003 (Code Preserved):12, CDQ-001 (Spans Closed):3)
+3. **Attempt 3**: 11 blocking errors (NDS-003 (Code Preserved):11)
 4. **Attempt 4**: function-level: 7/7 functions instrumented
 
 ## Notes
-- `runSummarize`, `runWeeklySummarize`, and `runMonthlySummarize` use `tracer.startSpan()` instead of `tracer.startActiveSpan()` (which is the preferred pattern per CDQ-005). All three functions contain per-item try/catch blocks inside a for loop whose inner catches swallow errors without rethrowing. Using `startActiveSpan` with a callback wrapper would necessarily re-indent the existing for-loop try blocks (from 4 spaces to 8 spaces), violating NDS-003 line-content preservation. Using `startSpan` with explicit `span.end()` at the return point is the only structural approach that avoids modifying existing code indentation. Since all errors are caught gracefully inside the per-item catch blocks and nothing propagates to the function level, `span.end()` at the end of the function body is always reached.
-- The three inner catch blocks in the for loops (`catch (err) { result.failed.push(...) ... }`) are graceful-degradation catches — they accumulate errors into the result object without rethrowing. Per NDS-007, `span.recordException` and `span.setStatus(ERROR)` are not added to these catches. Likewise, the file-not-found catch inside `runSummarize` (`catch { // Doesn't exist, proceed }`) is an expected-condition catch representing normal control flow.
-- All schema-defined span names for daily/weekly/monthly summary operations (`commit_story.journal.daily_summary`, `commit_story.journal.generate_daily_summary`, `commit_story.journal.weekly_summary`, `commit_story.journal.create_weekly_summary`, `commit_story.journal.monthly_summary`, `commit_story.journal.generate_monthly_summary`) were already claimed by earlier files in this instrumentation run. New names `commit_story.summarize.run_daily`, `commit_story.summarize.run_weekly`, and `commit_story.summarize.run_monthly` were invented using the `commit_story` namespace prefix and the `summarize` category to distinguish CLI-level orchestration from manager-level generation.
-- The schema includes `commit_story.journal.daily_summaries_count` and `commit_story.journal.weekly_summaries_count` but has no equivalent for monthly summaries. `commit_story.journal.monthly_summaries_count` was added as a schema extension (int type) to record the count of monthly summaries generated — directly parallel to the existing daily and weekly count attributes in the registry.
-- Synchronous functions `isValidDate`, `isValidWeekString`, `isValidMonthString`, `expandDateRange`, `parseSummarizeArgs`, and `showSummarizeHelp` were all skipped — they perform no I/O, make no async calls, and contain no external calls (RST-001: no spans on pure synchronous utilities).
+- runSummarize, runWeeklySummarize, runMonthlySummarize are the three exported async entry points and each receives a span (COV-001). The schema already defines spans for the imported manager functions they call, so no additional span wrapping is added for those sub-calls (RST-004, callee already owns that layer).
+- isValidDate, isValidWeekString, isValidMonthString, expandDateRange, parseSummarizeArgs, showSummarizeHelp are all synchronous functions with no I/O — skipped per RST-001.
+- The inner try/catch blocks inside the for loops in all three functions do not rethrow — they push to result.failed and continue the loop. These are graceful-degradation catches (NDS-007), so no recordException/setStatus was added to them. The outer span-level catch (COV-003) handles unexpected errors that escape the loop.
+- The empty catch block inside runSummarize (catch { // Doesn't exist, proceed }) handles the expected fs.access ENOENT condition — it is a control-flow catch and receives no error recording (NDS-007).
+- commit_story.summary.day_count is used for the number of days to process in runSummarize — the registered brief 'Agent-discovered attribute' is broad enough to apply to the input day count. commit_story.summary.week_count is similarly used for runWeeklySummarize.
+- commit_story.summarize.month_count is a new schema extension for runMonthlySummarize's input month count. The registered attribute commit_story.summary.month_label is a string type (for labeling a month), not an integer count, so it is not semantically equivalent. No other registered count attribute matches 'number of months to process'.
+- span.commit_story.summarize.run_daily, span.commit_story.summarize.run_weekly, and span.commit_story.summarize.run_monthly are new span extensions — the schema defines spans for the underlying manager operations but not for these CLI orchestrator entry points.
+- commit_story.summary.entry_count (registered) is set after each loop to record how many summaries were successfully generated, matching the registry brief for entry count in a summary context.
 - Function-level fallback: 7/7 functions instrumented
 -   instrumented: isValidWeekString (0 spans)
 -   instrumented: isValidMonthString (0 spans)
@@ -52,4 +52,5 @@
 
 ## Advisory Findings
 - CDQ-007 (Attribute Data Quality):328: CDQ-007 (Attribute Data Quality) fired for one or more of: a PII attribute name (like author, email, or username), a raw filesystem path where a basename would be safer, or a property access used as an attribute value without a null check. PII in traces can violate privacy policies and is worth fixing. The path and null-guard findings are lower severity — fix them if the code will run in a context where the value might be null.
-- CDQ-007 (Attribute Data Quality):512: CDQ-007 (Attribute Data Quality) fired for one or more of: a PII attribute name (like author, email, or username), a raw filesystem path where a basename would be safer, or a property access used as an attribute value without a null check. PII in traces can violate privacy policies and is worth fixing. The path and null-guard findings are lower severity — fix them if the code will run in a context where the value might be null.
+- CDQ-007 (Attribute Data Quality):424: CDQ-007 (Attribute Data Quality) fired for one or more of: a PII attribute name (like author, email, or username), a raw filesystem path where a basename would be safer, or a property access used as an attribute value without a null check. PII in traces can violate privacy policies and is worth fixing. The path and null-guard findings are lower severity — fix them if the code will run in a context where the value might be null.
+- CDQ-007 (Attribute Data Quality):506: CDQ-007 (Attribute Data Quality) fired for one or more of: a PII attribute name (like author, email, or username), a raw filesystem path where a basename would be safer, or a property access used as an attribute value without a null check. PII in traces can violate privacy policies and is worth fixing. The path and null-guard findings are lower severity — fix them if the code will run in a context where the value might be null.
