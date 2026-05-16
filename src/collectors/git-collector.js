@@ -7,6 +7,9 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('commit-story');
 
 const execFileAsync = promisify(execFile);
 
@@ -28,7 +31,10 @@ async function runGit(args, { commitRef } = {}) {
       if (error.stderr?.includes('not a git repository')) {
         throw new Error('Not a git repository');
       }
-      if (error.stderr?.includes('unknown revision') || error.stderr?.includes('bad revision')) {
+      if (
+        error.stderr?.includes('unknown revision') ||
+        error.stderr?.includes('bad revision')
+      ) {
         const ref = commitRef ?? args[args.length - 1];
         throw new Error(`Invalid commit reference: ${ref}`);
       }
@@ -46,10 +52,15 @@ async function getCommitMetadata(commitRef = 'HEAD') {
   // %H = full hash, %h = short hash, %s = subject, %b = body (without subject)
   // %an = author name, %ae = author email, %aI = author date ISO
   const format = '%H%n%h%n%s%n%b%n--END-BODY--%n%an%n%ae%n%aI';
-  const output = await runGit(['show', '--no-patch', `--format=${format}`, commitRef]);
+  const output = await runGit([
+    'show',
+    '--no-patch',
+    `--format=${format}`,
+    commitRef,
+  ]);
 
   const lines = output.split('\n');
-  const bodyEndIndex = lines.findIndex(line => line === '--END-BODY--');
+  const bodyEndIndex = lines.findIndex((line) => line === '--END-BODY--');
 
   const hash = lines[0];
   const shortHash = lines[1];
@@ -79,15 +90,15 @@ async function getCommitDiff(commitRef = 'HEAD') {
   const output = await runGit(
     [
       'diff-tree',
-      '-p',           // Generate patch
-      '-m',           // Show diff for merges
+      '-p', // Generate patch
+      '-m', // Show diff for merges
       '--first-parent', // For merges, diff against first parent
       commitRef,
       '--',
       '.',
       ':!journal/entries/', // Exclude journal entries
     ],
-    { commitRef }
+    { commitRef },
   );
 
   // First line is commit hash, rest is diff
@@ -117,14 +128,33 @@ async function getMergeInfo(commitRef = 'HEAD') {
  * @returns {Promise<Date|null>} - Previous commit timestamp, null if first commit
  */
 export async function getPreviousCommitTime(commitRef = 'HEAD') {
-  const output = await runGit(['log', '-2', '--format=%aI', commitRef]);
-  const timestamps = output.trim().split('\n');
+  return tracer.startActiveSpan(
+    'commit_story.git.get_previous_commit_time',
+    async (span) => {
+      try {
+        span.setAttribute('vcs.ref.head.revision', commitRef);
+        const output = await runGit(['log', '-2', '--format=%aI', commitRef]);
+        const timestamps = output.trim().split('\n');
 
-  if (timestamps.length < 2) {
-    return null; // First commit, no previous
-  }
+        if (timestamps.length < 2) {
+          return null; // First commit, no previous
+        }
 
-  return new Date(timestamps[1]);
+        const result = new Date(timestamps[1]);
+        span.setAttribute(
+          'commit_story.commit.timestamp',
+          result.toISOString(),
+        );
+        return result;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    },
+  );
 }
 
 /**
@@ -133,15 +163,29 @@ export async function getPreviousCommitTime(commitRef = 'HEAD') {
  * @returns {Promise<CommitData>}
  */
 export async function getCommitData(commitRef = 'HEAD') {
-  const [metadata, diff, mergeInfo] = await Promise.all([
-    getCommitMetadata(commitRef),
-    getCommitDiff(commitRef),
-    getMergeInfo(commitRef),
-  ]);
+  return tracer.startActiveSpan(
+    'commit_story.git.get_commit_data',
+    async (span) => {
+      try {
+        span.setAttribute('vcs.ref.head.revision', commitRef);
+        const [metadata, diff, mergeInfo] = await Promise.all([
+          getCommitMetadata(commitRef),
+          getCommitDiff(commitRef),
+          getMergeInfo(commitRef),
+        ]);
 
-  return {
-    ...metadata,
-    diff,
-    ...mergeInfo,
-  };
+        return {
+          ...metadata,
+          diff,
+          ...mergeInfo,
+        };
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    },
+  );
 }
