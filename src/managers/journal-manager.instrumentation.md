@@ -3,41 +3,29 @@
 ## Summary
 - **Status**: success
 - **Spans added**: 2
-- **Attempts**: 3 (fresh-regeneration)
-- **Input tokens**: 40.3K
-- **Output tokens**: 39.1K
-- **Cached tokens**: 43.1K
+- **Attempts**: 2 (multi-turn-fix)
+- **Input tokens**: 26.3K
+- **Output tokens**: 27.9K
+- **Cached tokens**: 21.5K
 
 ## Schema Extensions
 - `span.commit_story.journal.save_entry`
 - `span.commit_story.journal.discover_reflections`
-- `commit_story.journal.reflections_count`
-
-## Function-Level Results
-
-| Function | Status | Spans |
-|----------|--------|-------|
-| formatJournalEntry | instrumented | 0 |
-| saveJournalEntry | instrumented | 1 |
-| discoverReflections | instrumented | 1 |
 
 ## Validation Journey
 1. **Attempt 1**: 15 blocking errors (NDS-003 (Code Preserved):15)
-2. **Attempt 2**: 3 blocking errors (NDS-003 (Code Preserved):3)
-3. **Attempt 3**: 15 blocking errors (NDS-003 (Code Preserved):15)
-4. **Attempt 4**: function-level: 3/3 functions instrumented
+2. **Attempt 2**: 0 errors
 
 ## Notes
-- The ten synchronous functions — extractFilesFromDiff, countDiffLines, formatTimestamp, formatReflectionsSection, formatJournalEntry, parseReflectionEntry, parseTimeString, parseReflectionsFile, isInTimeWindow, and getYearMonthRange — were skipped. All are pure data transformations or formatters with no I/O or async operations. Adding spans to synchronous utilities with no I/O provides no diagnostic value (RST-001). The unexported helpers among them are also covered transitively by the parent exported spans (RST-004).
-- In saveJournalEntry, the inner catch block (which swallows the ENOENT error when the journal file does not yet exist) is an expected-condition catch representing normal control flow, not a failure. Per NDS-007, recordException and setStatus were NOT added to it. The outer span-level catch handles genuinely unexpected errors only.
-- In discoverReflections, both inner catch blocks — one for unreadable reflection files and one for missing year-month directories — are graceful-degradation catches that simply continue iteration. Per NDS-007, error recording was not added to either. The outer span-level catch captures truly unexpected failures.
-- The commit_story.journal.file_path attribute in saveJournalEntry is set to the raw entryPath filesystem path. CDQ-007 recommends using path.basename() or a project-relative path, but basename is not already imported (only join is imported from node:path). Adding a new non-OTel import to comply would violate the import constraint, so the raw path is used and noted here as a known limitation.
-- Two new span names — commit_story.journal.save_entry and commit_story.journal.discover_reflections — were invented because no schema span definitions matched these operations. They follow the commit_story.<category>.<operation> naming convention established by the registry and are reported as schemaExtensions.
-- Function-level fallback: 3/3 functions instrumented
--   instrumented: formatJournalEntry (0 spans)
--   instrumented: saveJournalEntry (1 spans)
--   instrumented: discoverReflections (1 spans)
+- Fixed NDS-003 violations: restored multi-line form for the if-condition in countDiffLines (lines 51-53), the saveJournalEntry parameter list (lines 180-186), and the isSemanticDup assignment (lines 213-215) to match the exact original line structure on disk.
+- CDQ-007 advisory for entryPath filesystem path: basename is not imported (only join from node:path is available), so the raw path is used per CDQ-007 guidance — adding a new non-OTel import is prohibited.
+- CDQ-007 advisory for reflections.length: reflections is initialized as const reflections = [] at the top of the span callback and is never reassigned, so it can never be null or undefined. The advisory is a false positive for this specific case.
+- CDQ-007 advisory for commit.hash: already guarded with if (commit.hash != null) before setAttribute — the guard was present in the previous submission.
+- saveJournalEntry and discoverReflections are the two COV-001 exported async entry points. All other functions are either synchronous (RST-001) or unexported (RST-004) and were correctly skipped.
+- span.commit_story.journal.save_entry — new span name; the registry has commit_story.journal.generate_sections and commit_story.journal.ensure_directory but neither covers persisting a formatted entry to disk.
+- span.commit_story.journal.discover_reflections — new span name; commit_story.context.collect_chat_messages covers Claude Code session messages, not reflection markdown file discovery from the journal directory.
 
 ## Advisory Findings
+- CDQ-007 (Attribute Data Quality):194: CDQ-007 (Attribute Data Quality) fired for one or more of: a PII attribute name (like author, email, or username), a raw filesystem path where a basename would be safer, or a property access used as an attribute value without a null check. PII in traces can violate privacy policies and is worth fixing. The path and null-guard findings are lower severity — fix them if the code will run in a context where the value might be null.
 - CDQ-007 (Attribute Data Quality):197: CDQ-007 (Attribute Data Quality) fired for one or more of: a PII attribute name (like author, email, or username), a raw filesystem path where a basename would be safer, or a property access used as an attribute value without a null check. PII in traces can violate privacy policies and is worth fixing. The path and null-guard findings are lower severity — fix them if the code will run in a context where the value might be null.
-- CDQ-007 (Attribute Data Quality):467: CDQ-007 (Attribute Data Quality) fired for one or more of: a PII attribute name (like author, email, or username), a raw filesystem path where a basename would be safer, or a property access used as an attribute value without a null check. PII in traces can violate privacy policies and is worth fixing. The path and null-guard findings are lower severity — fix them if the code will run in a context where the value might be null.
+- CDQ-007 (Attribute Data Quality):426: CDQ-007 (Attribute Data Quality) fired for one or more of: a PII attribute name (like author, email, or username), a raw filesystem path where a basename would be safer, or a property access used as an attribute value without a null check. PII in traces can violate privacy policies and is worth fixing. The path and null-guard findings are lower severity — fix them if the code will run in a context where the value might be null.
