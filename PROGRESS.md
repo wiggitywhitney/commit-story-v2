@@ -10,6 +10,7 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 - (2026-05-05) Added `service.instance.id: randomUUID()` to `resourceFromAttributes` in `examples/instrumentation.js` so RES-001 passes in IS scoring runs.
 
 ### Added
+- (2026-05-16) Added OpenTelemetry instrumentation spans across all major source modules — git and Claude collectors, journal graph generator, MCP server, context integrator, summarize command, journal and summary managers, and supporting utilities — enabling distributed tracing of the commit story generation pipeline.
 - (2026-03-21) Installed OTel SDK, OTLP exporter, and Traceloop auto-instrumentation packages for local telemetry (PRD #51, milestone 1)
 - (2026-03-21) Created OTel SDK bootstrap with OTLP exporter, resource attributes, LangChain/MCP auto-instrumentation, and graceful shutdown (PRD #51, milestone 2)
 - (2026-03-21) Added Datadog Agent Docker setup/teardown scripts with vals-based secret injection and port/container safety checks (PRD #51, milestone 3)
