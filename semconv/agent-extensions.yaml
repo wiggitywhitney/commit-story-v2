@@ -81,3 +81,8 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.summary.generate_monthly"
     span_kind: internal
+  - id: span.commit_story.context.gather_context_for_commit
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.context.gather_context_for_commit"
+    span_kind: internal
