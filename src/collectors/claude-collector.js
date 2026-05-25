@@ -8,6 +8,9 @@
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Get the Claude projects directory path
@@ -25,7 +28,9 @@ export function getClaudeProjectsDir() {
  */
 export function encodeProjectPath(repoPath) {
   // Remove trailing slash if present
-  const normalizedPath = repoPath.endsWith('/') ? repoPath.slice(0, -1) : repoPath;
+  const normalizedPath = repoPath.endsWith('/')
+    ? repoPath.slice(0, -1)
+    : repoPath;
   // Replace all forward slashes and dots with hyphens
   // Claude Code encodes both / and . as -
   return normalizedPath.replace(/[/.]/g, '-');
@@ -72,7 +77,7 @@ export function findJSONLFiles(projectPath) {
       const stats = statSync(filePath);
       return {
         path: filePath,
-        mtime: stats.mtime.getTime(),
+        mtime: stats.mtime.getTime()
       };
     })
     .sort((a, b) => b.mtime - a.mtime) // Sort by modification time, newest first
@@ -89,7 +94,7 @@ const SKIP_RECORD_TYPES = new Set([
   'file-history-snapshot', // File backup tracking
   'progress', // Execution progress (hooks, bash, mcp)
   'queue-operation', // User input queuing
-  'system', // System metrics (turn duration)
+  'system' // System metrics (turn duration)
 ]);
 
 /**
@@ -173,7 +178,9 @@ export function groupBySession(messages) {
 
   // Sort messages within each session chronologically
   for (const [sessionId, sessionMessages] of sessions) {
-    sessionMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    sessionMessages.sort(
+      (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+    );
   }
 
   return sessions;
@@ -186,44 +193,86 @@ export function groupBySession(messages) {
  * @param {Date} previousCommitTime - Previous commit timestamp (start of window)
  * @returns {Promise<ChatData>} Collected chat data
  */
-export async function collectChatMessages(repoPath, commitTime, previousCommitTime) {
-  const projectPath = getClaudeProjectPath(repoPath);
+export async function collectChatMessages(
+  repoPath,
+  commitTime,
+  previousCommitTime
+) {
+  return tracer.startActiveSpan(
+    'commit_story.context.collect_chat_messages',
+    async (span) => {
+      try {
+        span.setAttribute('commit_story.context.source', 'claude_code');
+        span.setAttribute(
+          'commit_story.context.time_window_start',
+          previousCommitTime.toISOString()
+        );
+        span.setAttribute(
+          'commit_story.context.time_window_end',
+          commitTime.toISOString()
+        );
 
-  if (!projectPath) {
-    return {
-      messages: [],
-      sessions: new Map(),
-      sessionCount: 0,
-      messageCount: 0,
-      timeWindow: {
-        start: previousCommitTime,
-        end: commitTime,
-      },
-    };
-  }
+        const projectPath = getClaudeProjectPath(repoPath);
 
-  const jsonlFiles = findJSONLFiles(projectPath);
-  let allMessages = [];
+        if (!projectPath) {
+          span.setAttribute('commit_story.context.sessions_count', 0);
+          span.setAttribute('commit_story.context.messages_count', 0);
+          return {
+            messages: [],
+            sessions: new Map(),
+            sessionCount: 0,
+            messageCount: 0,
+            timeWindow: {
+              start: previousCommitTime,
+              end: commitTime
+            }
+          };
+        }
 
-  for (const filePath of jsonlFiles) {
-    const fileMessages = parseJSONLFile(filePath);
-    const filtered = filterMessages(fileMessages, repoPath, previousCommitTime, commitTime);
-    allMessages = allMessages.concat(filtered);
-  }
+        const jsonlFiles = findJSONLFiles(projectPath);
+        let allMessages = [];
 
-  // Sort all messages chronologically
-  allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        for (const filePath of jsonlFiles) {
+          const fileMessages = parseJSONLFile(filePath);
+          const filtered = filterMessages(
+            fileMessages,
+            repoPath,
+            previousCommitTime,
+            commitTime
+          );
+          allMessages = allMessages.concat(filtered);
+        }
 
-  const sessions = groupBySession(allMessages);
+        // Sort all messages chronologically
+        allMessages.sort(
+          (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+        );
 
-  return {
-    messages: allMessages,
-    sessions,
-    sessionCount: sessions.size,
-    messageCount: allMessages.length,
-    timeWindow: {
-      start: previousCommitTime,
-      end: commitTime,
-    },
-  };
+        const sessions = groupBySession(allMessages);
+
+        span.setAttribute('commit_story.context.sessions_count', sessions.size);
+        span.setAttribute(
+          'commit_story.context.messages_count',
+          allMessages.length
+        );
+
+        return {
+          messages: allMessages,
+          sessions,
+          sessionCount: sessions.size,
+          messageCount: allMessages.length,
+          timeWindow: {
+            start: previousCommitTime,
+            end: commitTime
+          }
+        };
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    }
+  );
 }
