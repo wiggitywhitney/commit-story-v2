@@ -1,8 +1,19 @@
 // ABOUTME: Auto-trigger logic for daily, weekly, and monthly summaries after journal entry creation
 // ABOUTME: Detects unsummarized past days/weeks/months and generates summaries with progress reporting
 
-import { findUnsummarizedDays, findUnsummarizedWeeks, findUnsummarizedMonths } from '../utils/summary-detector.js';
-import { generateAndSaveDailySummary, generateAndSaveWeeklySummary, generateAndSaveMonthlySummary } from './summary-manager.js';
+import {
+  findUnsummarizedDays,
+  findUnsummarizedWeeks,
+  findUnsummarizedMonths
+} from '../utils/summary-detector.js';
+import {
+  generateAndSaveDailySummary,
+  generateAndSaveWeeklySummary,
+  generateAndSaveMonthlySummary
+} from './summary-manager.js';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('commit-story');
 
 function getErrorMessage(err) {
   return err instanceof Error ? err.message : String(err);
@@ -26,14 +37,14 @@ export async function triggerAutoSummaries(basePath = '.', options = {}) {
     generated: [],
     skipped: [],
     failed: [],
-    errors: [],
+    errors: []
   };
 
   for (const dateStr of unsummarizedDays) {
     const date = new Date(
       parseInt(dateStr.slice(0, 4)),
       parseInt(dateStr.slice(5, 7)) - 1,
-      parseInt(dateStr.slice(8, 10)),
+      parseInt(dateStr.slice(8, 10))
     );
 
     try {
@@ -58,7 +69,9 @@ export async function triggerAutoSummaries(basePath = '.', options = {}) {
       result.failed.push(dateStr);
       result.errors.push(`${dateStr}: ${getErrorMessage(err)}`);
       if (onProgress) {
-        onProgress(`Failed to generate summary for ${dateStr}: ${getErrorMessage(err)}`);
+        onProgress(
+          `Failed to generate summary for ${dateStr}: ${getErrorMessage(err)}`
+        );
       }
     }
   }
@@ -67,7 +80,9 @@ export async function triggerAutoSummaries(basePath = '.', options = {}) {
   // prevents locking in incomplete weekly/monthly via duplicate detection
   if (result.failed.length > 0) {
     if (onProgress) {
-      onProgress('Skipped weekly/monthly auto-summaries because daily generation had failures');
+      onProgress(
+        'Skipped weekly/monthly auto-summaries because daily generation had failures'
+      );
     }
     return result;
   }
@@ -79,10 +94,18 @@ export async function triggerAutoSummaries(basePath = '.', options = {}) {
   const monthlyResult = await triggerAutoMonthlySummaries(basePath, options);
 
   return {
-    generated: [...result.generated, ...weeklyResult.generated, ...monthlyResult.generated],
-    skipped: [...result.skipped, ...weeklyResult.skipped, ...monthlyResult.skipped],
+    generated: [
+      ...result.generated,
+      ...weeklyResult.generated,
+      ...monthlyResult.generated
+    ],
+    skipped: [
+      ...result.skipped,
+      ...weeklyResult.skipped,
+      ...monthlyResult.skipped
+    ],
     failed: [...result.failed, ...weeklyResult.failed, ...monthlyResult.failed],
-    errors: [...result.errors, ...weeklyResult.errors, ...monthlyResult.errors],
+    errors: [...result.errors, ...weeklyResult.errors, ...monthlyResult.errors]
   };
 }
 
@@ -95,45 +118,75 @@ export async function triggerAutoSummaries(basePath = '.', options = {}) {
  * @returns {Promise<{ generated: string[], skipped: string[], failed: string[], errors: string[] }>}
  */
 export async function triggerAutoWeeklySummaries(basePath = '.', options = {}) {
-  const { onProgress } = options;
+  return tracer.startActiveSpan(
+    'commit_story.summary.trigger_auto_weekly_summaries',
+    async (span) => {
+      try {
+        const { onProgress } = options;
 
-  const unsummarizedWeeks = await findUnsummarizedWeeks(basePath);
+        const unsummarizedWeeks = await findUnsummarizedWeeks(basePath);
+        span.setAttribute(
+          'commit_story.summary.unsummarized_weeks_count',
+          unsummarizedWeeks.length
+        );
 
-  const result = {
-    generated: [],
-    skipped: [],
-    failed: [],
-    errors: [],
-  };
+        const result = {
+          generated: [],
+          skipped: [],
+          failed: [],
+          errors: []
+        };
 
-  for (const weekStr of unsummarizedWeeks) {
-    try {
-      const summaryResult = await generateAndSaveWeeklySummary(weekStr, basePath);
+        for (const weekStr of unsummarizedWeeks) {
+          try {
+            const summaryResult = await generateAndSaveWeeklySummary(
+              weekStr,
+              basePath
+            );
 
-      if (summaryResult.saved) {
-        result.generated.push(summaryResult.path);
-        if (onProgress) {
-          onProgress(`Generated weekly summary for ${weekStr}`);
-        }
+            if (summaryResult.saved) {
+              result.generated.push(summaryResult.path);
+              if (onProgress) {
+                onProgress(`Generated weekly summary for ${weekStr}`);
+              }
 
-        if (summaryResult.errors && summaryResult.errors.length > 0) {
-          for (const err of summaryResult.errors) {
-            result.errors.push(`${weekStr}: ${err}`);
+              if (summaryResult.errors && summaryResult.errors.length > 0) {
+                for (const err of summaryResult.errors) {
+                  result.errors.push(`${weekStr}: ${err}`);
+                }
+              }
+            } else {
+              result.skipped.push(weekStr);
+            }
+          } catch (err) {
+            result.failed.push(weekStr);
+            result.errors.push(`${weekStr}: ${getErrorMessage(err)}`);
+            if (onProgress) {
+              onProgress(
+                `Failed to generate weekly summary for ${weekStr}: ${getErrorMessage(err)}`
+              );
+            }
           }
         }
-      } else {
-        result.skipped.push(weekStr);
-      }
-    } catch (err) {
-      result.failed.push(weekStr);
-      result.errors.push(`${weekStr}: ${getErrorMessage(err)}`);
-      if (onProgress) {
-        onProgress(`Failed to generate weekly summary for ${weekStr}: ${getErrorMessage(err)}`);
+
+        span.setAttribute(
+          'commit_story.summary.generated_count',
+          result.generated.length
+        );
+        span.setAttribute(
+          'commit_story.summary.failed_count',
+          result.failed.length
+        );
+        return result;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
       }
     }
-  }
-
-  return result;
+  );
 }
 
 /**
@@ -144,44 +197,77 @@ export async function triggerAutoWeeklySummaries(basePath = '.', options = {}) {
  * @param {{ onProgress?: (msg: string) => void }} options - Options
  * @returns {Promise<{ generated: string[], skipped: string[], failed: string[], errors: string[] }>}
  */
-export async function triggerAutoMonthlySummaries(basePath = '.', options = {}) {
-  const { onProgress } = options;
+export async function triggerAutoMonthlySummaries(
+  basePath = '.',
+  options = {}
+) {
+  return tracer.startActiveSpan(
+    'commit_story.summary.trigger_auto_monthly_summaries',
+    async (span) => {
+      try {
+        const { onProgress } = options;
 
-  const unsummarizedMonths = await findUnsummarizedMonths(basePath);
+        const unsummarizedMonths = await findUnsummarizedMonths(basePath);
+        span.setAttribute(
+          'commit_story.summary.unsummarized_months_count',
+          unsummarizedMonths.length
+        );
 
-  const result = {
-    generated: [],
-    skipped: [],
-    failed: [],
-    errors: [],
-  };
+        const result = {
+          generated: [],
+          skipped: [],
+          failed: [],
+          errors: []
+        };
 
-  for (const monthStr of unsummarizedMonths) {
-    try {
-      const summaryResult = await generateAndSaveMonthlySummary(monthStr, basePath);
+        for (const monthStr of unsummarizedMonths) {
+          try {
+            const summaryResult = await generateAndSaveMonthlySummary(
+              monthStr,
+              basePath
+            );
 
-      if (summaryResult.saved) {
-        result.generated.push(summaryResult.path);
-        if (onProgress) {
-          onProgress(`Generated monthly summary for ${monthStr}`);
-        }
+            if (summaryResult.saved) {
+              result.generated.push(summaryResult.path);
+              if (onProgress) {
+                onProgress(`Generated monthly summary for ${monthStr}`);
+              }
 
-        if (summaryResult.errors && summaryResult.errors.length > 0) {
-          for (const err of summaryResult.errors) {
-            result.errors.push(`${monthStr}: ${err}`);
+              if (summaryResult.errors && summaryResult.errors.length > 0) {
+                for (const err of summaryResult.errors) {
+                  result.errors.push(`${monthStr}: ${err}`);
+                }
+              }
+            } else {
+              result.skipped.push(monthStr);
+            }
+          } catch (err) {
+            result.failed.push(monthStr);
+            result.errors.push(`${monthStr}: ${getErrorMessage(err)}`);
+            if (onProgress) {
+              onProgress(
+                `Failed to generate monthly summary for ${monthStr}: ${getErrorMessage(err)}`
+              );
+            }
           }
         }
-      } else {
-        result.skipped.push(monthStr);
-      }
-    } catch (err) {
-      result.failed.push(monthStr);
-      result.errors.push(`${monthStr}: ${getErrorMessage(err)}`);
-      if (onProgress) {
-        onProgress(`Failed to generate monthly summary for ${monthStr}: ${getErrorMessage(err)}`);
+
+        span.setAttribute(
+          'commit_story.summary.generated_count',
+          result.generated.length
+        );
+        span.setAttribute(
+          'commit_story.summary.failed_count',
+          result.failed.length
+        );
+        return result;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
       }
     }
-  }
-
-  return result;
+  );
 }
