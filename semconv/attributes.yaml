@@ -262,3 +262,37 @@ groups:
               stability: development
         stability: development
         brief: The type of journal section being generated
+
+  # ==========================================================================
+  # GIT OPERATION ATTRIBUTES
+  # Metadata about git operations invoked during commit data collection
+  # ==========================================================================
+  - id: registry.commit_story.git
+    type: attribute_group
+    display_name: Git Operation Attributes
+    brief: Attributes describing git operations performed during commit data collection
+    attributes:
+      - id: commit_story.git.command
+        type: string
+        stability: development
+        brief: The git subcommand invoked (e.g., log, show, diff)
+        examples:
+          - "log"
+          - "show"
+          - "diff"
+
+      - id: commit_story.git.is_merge
+        type: boolean
+        stability: development
+        brief: Whether the commit is a merge commit (has more than one parent)
+        examples:
+          - true
+          - false
+
+      - id: commit_story.git.parent_count
+        type: int
+        stability: development
+        brief: Number of parent commits (0 for root, 1 for regular, 2+ for merge)
+        examples:
+          - 1
+          - 2
