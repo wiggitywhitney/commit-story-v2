@@ -14,3 +14,23 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.git.get_commit_data"
     span_kind: internal
+  - id: span.commit_story.ai.summary_node
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.summary_node"
+    span_kind: internal
+  - id: span.commit_story.ai.technical_node
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.technical_node"
+    span_kind: internal
+  - id: span.commit_story.ai.dialogue_node
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.dialogue_node"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_journal_sections
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_journal_sections"
+    span_kind: internal
