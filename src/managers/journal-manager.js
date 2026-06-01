@@ -7,12 +7,15 @@
 
 import { readFile, appendFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('commit-story');
 import {
   getJournalEntryPath,
   getReflectionsDirectory,
   ensureDirectory,
   parseDateFromFilename,
-  getYearMonth,
+  getYearMonth
 } from '../utils/journal-paths.js';
 
 /** Separator between journal entries */
@@ -48,8 +51,10 @@ function countDiffLines(diff) {
   const lines = diff.split('\n');
   let count = 0;
   for (const line of lines) {
-    if ((line.startsWith('+') && !line.startsWith('+++')) ||
-        (line.startsWith('-') && !line.startsWith('---'))) {
+    if (
+      (line.startsWith('+') && !line.startsWith('+++')) ||
+      (line.startsWith('-') && !line.startsWith('---'))
+    ) {
       count++;
     }
   }
@@ -57,7 +62,8 @@ function countDiffLines(diff) {
 }
 
 /** Pattern to match reflection entry headers */
-const REFLECTION_HEADER_PATTERN = /^## (\d{1,2}:\d{2}:\d{2} [AP]M \w+) - (.+?)$/m;
+const REFLECTION_HEADER_PATTERN =
+  /^## (\d{1,2}:\d{2}:\d{2} [AP]M \w+) - (.+?)$/m;
 
 /**
  * Format timestamp for display in local time
@@ -70,7 +76,7 @@ export function formatTimestamp(date) {
     minute: '2-digit',
     second: '2-digit',
     hour12: true,
-    timeZoneName: 'short',
+    timeZoneName: 'short'
   });
 }
 
@@ -174,49 +180,98 @@ export function formatJournalEntry(sections, commit, reflections = []) {
  * @param {Function} [options.debug] - Debug logging function
  * @returns {Promise<string>} Path to saved file
  */
-export async function saveJournalEntry(sections, commit, reflections = [], basePath = '.', options = {}) {
-  const log = options.debug || (() => {});
-  const entryPath = getJournalEntryPath(commit.timestamp, basePath);
+export async function saveJournalEntry(
+  sections,
+  commit,
+  reflections = [],
+  basePath = '.',
+  options = {}
+) {
+  return tracer.startActiveSpan(
+    'commit_story.journal.save_entry',
+    async (span) => {
+      try {
+        const log = options.debug || (() => {});
+        const entryPath = getJournalEntryPath(commit.timestamp, basePath);
+        span.setAttribute('commit_story.journal.file_path', entryPath);
+        if (commit.timestamp != null) {
+          span.setAttribute(
+            'commit_story.commit.timestamp',
+            new Date(commit.timestamp).toISOString()
+          );
+        }
+        if (commit.shortHash != null) {
+          span.setAttribute('vcs.ref.head.revision', commit.shortHash);
+        }
+        if (commit.message != null) {
+          span.setAttribute(
+            'commit_story.commit.message',
+            commit.message.split('\n')[0]
+          );
+        }
 
-  // Ensure directory exists
-  await ensureDirectory(entryPath);
+        // Ensure directory exists
+        await ensureDirectory(entryPath);
 
-  // Check for duplicate entry
-  try {
-    const existing = await readFile(entryPath, 'utf-8');
+        // Check for duplicate entry
+        try {
+          const existing = await readFile(entryPath, 'utf-8');
 
-    // Path 1: Exact hash match (catches re-runs of the same commit)
-    if (existing.includes(`Commit: ${commit.shortHash}`)) {
-      log(`Skipping duplicate entry: exact hash match (${commit.shortHash})`);
-      return entryPath;
+          // Path 1: Exact hash match (catches re-runs of the same commit)
+          if (existing.includes(`Commit: ${commit.shortHash}`)) {
+            log(
+              `Skipping duplicate entry: exact hash match (${commit.shortHash})`
+            );
+            return entryPath;
+          }
+
+          // Path 2: Semantic match (catches cherry-pick/rebase duplicates)
+          // Cherry-picks and rebases preserve author timestamp and commit message
+          // but produce a new commit hash. Match on both to avoid false positives.
+          // Split into entry blocks so we check timestamp+message within the SAME entry,
+          // avoiding false positives when different entries share one field each.
+          const timeStr = formatTimestamp(commit.timestamp);
+          const commitMessage = (commit.message || '').split('\n')[0];
+          const entryBlocks = existing.split(
+            '═══════════════════════════════════════'
+          );
+          const isSemanticDup =
+            commitMessage &&
+            entryBlocks.some(
+              (block) =>
+                block.includes(`## ${timeStr}`) &&
+                block.includes(`**Message**: "${commitMessage}"`)
+            );
+          if (isSemanticDup) {
+            log(
+              `Skipping duplicate entry: semantic match — same timestamp (${timeStr}) and message ("${commitMessage}"), likely cherry-pick/rebase of ${commit.shortHash}`
+            );
+            return entryPath;
+          }
+        } catch {
+          // File doesn't exist yet, proceed
+        }
+
+        // Format the entry
+        const formattedEntry = formatJournalEntry(
+          sections,
+          commit,
+          reflections
+        );
+
+        // Append to file (creates if doesn't exist)
+        await appendFile(entryPath, formattedEntry + '\n', 'utf-8');
+
+        return entryPath;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
     }
-
-    // Path 2: Semantic match (catches cherry-pick/rebase duplicates)
-    // Cherry-picks and rebases preserve author timestamp and commit message
-    // but produce a new commit hash. Match on both to avoid false positives.
-    // Split into entry blocks so we check timestamp+message within the SAME entry,
-    // avoiding false positives when different entries share one field each.
-    const timeStr = formatTimestamp(commit.timestamp);
-    const commitMessage = (commit.message || '').split('\n')[0];
-    const entryBlocks = existing.split('═══════════════════════════════════════');
-    const isSemanticDup = commitMessage && entryBlocks.some(
-      block => block.includes(`## ${timeStr}`) && block.includes(`**Message**: "${commitMessage}"`)
-    );
-    if (isSemanticDup) {
-      log(`Skipping duplicate entry: semantic match — same timestamp (${timeStr}) and message ("${commitMessage}"), likely cherry-pick/rebase of ${commit.shortHash}`);
-      return entryPath;
-    }
-  } catch {
-    // File doesn't exist yet, proceed
-  }
-
-  // Format the entry
-  const formattedEntry = formatJournalEntry(sections, commit, reflections);
-
-  // Append to file (creates if doesn't exist)
-  await appendFile(entryPath, formattedEntry + '\n', 'utf-8');
-
-  return entryPath;
+  );
 }
 
 /**
@@ -244,7 +299,7 @@ function parseReflectionEntry(content, baseDate) {
   return {
     timestamp,
     title,
-    content: text,
+    content: text
   };
 }
 
@@ -325,73 +380,106 @@ function isInTimeWindow(timestamp, startTime, endTime) {
  * @returns {Promise<Array>} Array of reflections sorted chronologically
  */
 export async function discoverReflections(startTime, endTime, basePath = '.') {
-  const reflections = [];
+  return tracer.startActiveSpan(
+    'commit_story.journal.discover_reflections',
+    async (span) => {
+      try {
+        span.setAttribute(
+          'commit_story.context.time_window_start',
+          startTime.toISOString()
+        );
+        span.setAttribute(
+          'commit_story.context.time_window_end',
+          endTime.toISOString()
+        );
+        const reflections = [];
 
-  // Get all year-month directories that could contain relevant reflections
-  const startYearMonth = getYearMonth(startTime);
-  const endYearMonth = getYearMonth(endTime);
-  const yearMonths = getYearMonthRange(startYearMonth, endYearMonth);
+        // Get all year-month directories that could contain relevant reflections
+        const startYearMonth = getYearMonth(startTime);
+        const endYearMonth = getYearMonth(endTime);
+        const yearMonths = getYearMonthRange(startYearMonth, endYearMonth);
 
-  for (const yearMonth of yearMonths) {
-    const reflectionsDir = join(basePath, 'journal', 'reflections', yearMonth);
+        for (const yearMonth of yearMonths) {
+          const reflectionsDir = join(
+            basePath,
+            'journal',
+            'reflections',
+            yearMonth
+          );
 
-    try {
-      const files = await readdir(reflectionsDir);
+          try {
+            const files = await readdir(reflectionsDir);
 
-      for (const file of files) {
-        if (!file.endsWith('.md')) {
-          continue;
-        }
+            for (const file of files) {
+              if (!file.endsWith('.md')) {
+                continue;
+              }
 
-        const fileDate = parseDateFromFilename(file);
-        if (!fileDate) {
-          continue;
-        }
+              const fileDate = parseDateFromFilename(file);
+              if (!fileDate) {
+                continue;
+              }
 
-        // Quick check: skip files outside the date range
-        // (dates are at start of day, so include if within range)
-        const fileDateEnd = new Date(fileDate);
-        fileDateEnd.setHours(23, 59, 59, 999);
+              // Quick check: skip files outside the date range
+              // (dates are at start of day, so include if within range)
+              const fileDateEnd = new Date(fileDate);
+              fileDateEnd.setHours(23, 59, 59, 999);
 
-        if (fileDateEnd.getTime() < startTime.getTime()) {
-          continue;
-        }
-        if (fileDate.getTime() > endTime.getTime()) {
-          continue;
-        }
+              if (fileDateEnd.getTime() < startTime.getTime()) {
+                continue;
+              }
+              if (fileDate.getTime() > endTime.getTime()) {
+                continue;
+              }
 
-        // Read and parse reflections from file
-        const filePath = join(reflectionsDir, file);
-        try {
-          const content = await readFile(filePath, 'utf-8');
-          const fileReflections = parseReflectionsFile(content, fileDate);
+              // Read and parse reflections from file
+              const filePath = join(reflectionsDir, file);
+              try {
+                const content = await readFile(filePath, 'utf-8');
+                const fileReflections = parseReflectionsFile(content, fileDate);
 
-          // Filter to time window
-          for (const reflection of fileReflections) {
-            if (isInTimeWindow(reflection.timestamp, startTime, endTime)) {
-              reflections.push({
-                ...reflection,
-                filePath,
-              });
+                // Filter to time window
+                for (const reflection of fileReflections) {
+                  if (
+                    isInTimeWindow(reflection.timestamp, startTime, endTime)
+                  ) {
+                    reflections.push({
+                      ...reflection,
+                      filePath
+                    });
+                  }
+                }
+              } catch {
+                // Skip files that can't be read
+                continue;
+              }
             }
+          } catch {
+            // Directory doesn't exist, skip
+            continue;
           }
-        } catch {
-          // Skip files that can't be read
-          continue;
         }
+
+        // Sort chronologically
+        reflections.sort(
+          (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+        );
+
+        span.setAttribute(
+          'commit_story.journal.entries_count',
+          reflections.length
+        );
+        return reflections;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
       }
-    } catch {
-      // Directory doesn't exist, skip
-      continue;
     }
-  }
-
-  // Sort chronologically
-  reflections.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-  return reflections;
+  );
 }
-
 
 /**
  * Get all year-months between start and end (inclusive)

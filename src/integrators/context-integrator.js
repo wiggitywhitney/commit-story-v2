@@ -6,11 +6,20 @@
  * token budget limits, and sensitive data redaction.
  */
 
-import { getCommitData, getPreviousCommitTime } from '../collectors/git-collector.js';
+import {
+  getCommitData,
+  getPreviousCommitTime
+} from '../collectors/git-collector.js';
 import { collectChatMessages } from '../collectors/claude-collector.js';
-import { filterMessages, groupFilteredBySession } from './filters/message-filter.js';
+import {
+  filterMessages,
+  groupFilteredBySession
+} from './filters/message-filter.js';
 import { applyTokenBudget, estimateTokens } from './filters/token-filter.js';
 import { applySensitiveFilter } from './filters/sensitive-filter.js';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Gather all context for a commit
@@ -24,86 +33,153 @@ import { applySensitiveFilter } from './filters/sensitive-filter.js';
  * @returns {Promise<Context>} Gathered and filtered context
  */
 export async function gatherContextForCommit(commitRef = 'HEAD', options = {}) {
-  const {
-    repoPath = process.cwd(),
-    tokenBudget = 150000,
-    diffBudget = 50000,
-    chatBudget = 80000,
-    redactEmails = false,
-  } = options;
+  return tracer.startActiveSpan(
+    'commit_story.context.gather_context_for_commit',
+    async (span) => {
+      try {
+        const {
+          repoPath = process.cwd(),
+          tokenBudget = 150000,
+          diffBudget = 50000,
+          chatBudget = 80000,
+          redactEmails = false
+        } = options;
 
-  // 1. Collect git data
-  const commitData = await getCommitData(commitRef);
+        span.setAttribute('vcs.ref.head.revision', commitRef);
 
-  // 2. Get previous commit time for chat window
-  const previousCommitTime = await getPreviousCommitTime(commitRef);
+        // 1. Collect git data
+        const commitData = await getCommitData(commitRef);
+        span.setAttribute('commit_story.commit.message', commitData.message);
+        span.setAttribute(
+          'commit_story.commit.timestamp',
+          commitData.timestamp.toISOString()
+        );
 
-  // 3. Collect chat messages
-  let chatData;
-  if (previousCommitTime) {
-    chatData = await collectChatMessages(repoPath, commitData.timestamp, previousCommitTime);
-  } else {
-    // First commit - use 24 hours before as window
-    const dayBefore = new Date(commitData.timestamp.getTime() - 24 * 60 * 60 * 1000);
-    chatData = await collectChatMessages(repoPath, commitData.timestamp, dayBefore);
-  }
+        // 2. Get previous commit time for chat window
+        const previousCommitTime = await getPreviousCommitTime(commitRef);
 
-  // 4. Filter chat messages
-  const { messages: filteredMessages, stats: filterStats } = filterMessages(chatData.messages);
+        // 3. Collect chat messages
+        let chatData;
+        if (previousCommitTime) {
+          chatData = await collectChatMessages(
+            repoPath,
+            commitData.timestamp,
+            previousCommitTime
+          );
+        } else {
+          // First commit - use 24 hours before as window
+          const dayBefore = new Date(
+            commitData.timestamp.getTime() - 24 * 60 * 60 * 1000
+          );
+          chatData = await collectChatMessages(
+            repoPath,
+            commitData.timestamp,
+            dayBefore
+          );
+        }
 
-  // 5. Group filtered messages by session
-  const filteredSessions = groupFilteredBySession(filteredMessages);
+        // 4. Filter chat messages
+        const { messages: filteredMessages, stats: filterStats } =
+          filterMessages(chatData.messages);
 
-  // 6. Build initial context object
-  let context = {
-    commit: {
-      hash: commitData.hash,
-      shortHash: commitData.shortHash,
-      message: commitData.message,
-      subject: commitData.subject,
-      author: commitData.author,
-      authorEmail: commitData.authorEmail,
-      timestamp: commitData.timestamp,
-      diff: commitData.diff,
-      isMerge: commitData.isMerge,
-      parentCount: commitData.parentCount,
-    },
-    chat: {
-      messages: filteredMessages,
-      sessions: filteredSessions,
-      messageCount: filteredMessages.length,
-      sessionCount: filteredSessions.size,
-    },
-    metadata: {
-      previousCommitTime,
-      timeWindow: {
-        start: previousCommitTime || new Date(commitData.timestamp.getTime() - 24 * 60 * 60 * 1000),
-        end: commitData.timestamp,
-      },
-      filterStats: {
-        totalMessages: filterStats.total,
-        filteredMessages: filterStats.filtered,
-        preservedMessages: filterStats.preserved,
-        substantialUserMessages: filterStats.substantialUserMessages,
-        filterReasons: filterStats.byReason,
-      },
-      tokenEstimate: 0, // Will be calculated after budget applied
-    },
-  };
+        // 5. Group filtered messages by session
+        const filteredSessions = groupFilteredBySession(filteredMessages);
 
-  // 7. Apply token budget limits
-  context = applyTokenBudget(context, {
-    totalBudget: tokenBudget,
-    diffBudget,
-    chatBudget,
-  });
+        span.setAttribute(
+          'commit_story.filter.messages_before',
+          filterStats.total
+        );
+        span.setAttribute(
+          'commit_story.filter.messages_after',
+          filterStats.preserved
+        );
+        span.setAttribute(
+          'commit_story.context.messages_count',
+          filteredMessages.length
+        );
+        span.setAttribute(
+          'commit_story.context.sessions_count',
+          filteredSessions.size
+        );
+        if (previousCommitTime != null) {
+          span.setAttribute(
+            'commit_story.context.time_window_start',
+            new Date(previousCommitTime).toISOString()
+          );
+        } else {
+          span.setAttribute(
+            'commit_story.context.time_window_start',
+            new Date(
+              commitData.timestamp.getTime() - 24 * 60 * 60 * 1000
+            ).toISOString()
+          );
+        }
+        span.setAttribute(
+          'commit_story.context.time_window_end',
+          commitData.timestamp.toISOString()
+        );
 
-  // 8. Apply sensitive data redaction
-  context = applySensitiveFilter(context, {
-    redactEmails,
-  });
+        // 6. Build initial context object
+        let context = {
+          commit: {
+            hash: commitData.hash,
+            shortHash: commitData.shortHash,
+            message: commitData.message,
+            subject: commitData.subject,
+            author: commitData.author,
+            authorEmail: commitData.authorEmail,
+            timestamp: commitData.timestamp,
+            diff: commitData.diff,
+            isMerge: commitData.isMerge,
+            parentCount: commitData.parentCount
+          },
+          chat: {
+            messages: filteredMessages,
+            sessions: filteredSessions,
+            messageCount: filteredMessages.length,
+            sessionCount: filteredSessions.size
+          },
+          metadata: {
+            previousCommitTime,
+            timeWindow: {
+              start:
+                previousCommitTime ||
+                new Date(commitData.timestamp.getTime() - 24 * 60 * 60 * 1000),
+              end: commitData.timestamp
+            },
+            filterStats: {
+              totalMessages: filterStats.total,
+              filteredMessages: filterStats.filtered,
+              preservedMessages: filterStats.preserved,
+              substantialUserMessages: filterStats.substantialUserMessages,
+              filterReasons: filterStats.byReason
+            },
+            tokenEstimate: 0 // Will be calculated after budget applied
+          }
+        };
 
-  return context;
+        // 7. Apply token budget limits
+        context = applyTokenBudget(context, {
+          totalBudget: tokenBudget,
+          diffBudget,
+          chatBudget
+        });
+
+        // 8. Apply sensitive data redaction
+        context = applySensitiveFilter(context, {
+          redactEmails
+        });
+
+        return context;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    }
+  );
 }
 
 /**
@@ -121,7 +197,9 @@ export function formatContextForPrompt(context) {
   sections.push(`**Date**: ${context.commit.timestamp.toISOString()}`);
   sections.push(`**Message**: ${context.commit.message}`);
   if (context.commit.isMerge) {
-    sections.push(`**Merge Commit**: Yes (${context.commit.parentCount} parents)`);
+    sections.push(
+      `**Merge Commit**: Yes (${context.commit.parentCount} parents)`
+    );
   }
   sections.push('');
 
@@ -170,17 +248,17 @@ export function getContextSummary(context) {
       author: context.commit.author,
       timestamp: context.commit.timestamp.toISOString(),
       isMerge: context.commit.isMerge,
-      diffLength: context.commit.diff?.length || 0,
+      diffLength: context.commit.diff?.length || 0
     },
     chat: {
       messageCount: context.chat.messageCount,
-      sessionCount: context.chat.sessionCount,
+      sessionCount: context.chat.sessionCount
     },
     metadata: {
       tokenEstimate: context.metadata.tokenEstimate,
       filterStats: context.metadata.filterStats,
       tokenBudget: context.metadata.tokenBudget,
-      sensitiveDataFilter: context.metadata.sensitiveDataFilter,
-    },
+      sensitiveDataFilter: context.metadata.sensitiveDataFilter
+    }
   };
 }
