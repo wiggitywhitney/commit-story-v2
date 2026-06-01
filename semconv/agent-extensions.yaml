@@ -245,3 +245,8 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.auto_summarize.trigger_monthly"
     span_kind: internal
+  - id: span.commit_story.commands.main
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.commands.main"
+    span_kind: internal
