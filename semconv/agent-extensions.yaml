@@ -1,0 +1,7 @@
+groups:
+  - id: span.commit_story.claude_collector.collect_chat_messages
+    type: span
+    stability: development
+    brief: "Agent-discovered span:
+      commit_story.claude_collector.collect_chat_messages"
+    span_kind: internal
