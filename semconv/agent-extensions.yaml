@@ -36,6 +36,16 @@ groups:
         type: boolean
         stability: development
         brief: "Agent-discovered attribute: commit_story.summary.force"
+      - id: commit_story.summary.unsummarized_weeks_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute:
+          commit_story.summary.unsummarized_weeks_count"
+      - id: commit_story.summary.unsummarized_months_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute:
+          commit_story.summary.unsummarized_months_count"
   - id: span.commit_story.claude_collector.collect_chat_messages
     type: span
     stability: development
@@ -210,4 +220,29 @@ groups:
     type: span
     stability: development
     brief: "Agent-discovered span: commit_story.summary.run_monthly_summarize"
+    span_kind: internal
+  - id: span.commit_story.summary.get_days_with_entries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.get_days_with_entries"
+    span_kind: internal
+  - id: span.commit_story.summary.find_unsummarized_days
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.find_unsummarized_days"
+    span_kind: internal
+  - id: span.commit_story.summary.get_days_with_daily_summaries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.get_days_with_daily_summaries"
+    span_kind: internal
+  - id: span.commit_story.summary.find_unsummarized_weeks
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.find_unsummarized_weeks"
+    span_kind: internal
+  - id: span.commit_story.summary.find_unsummarized_months
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.find_unsummarized_months"
     span_kind: internal
