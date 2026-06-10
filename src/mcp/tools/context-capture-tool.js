@@ -9,12 +9,15 @@
  * - Comprehensive context: When user just says "capture context"
  */
 
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { z } from 'zod';
 import { mkdir, appendFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 /** Separator bar for entries */
 const SEPARATOR = '═══════════════════════════════════════';
+
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Get the context file path for a date
@@ -67,17 +70,28 @@ ${SEPARATOR}
  * @returns {Promise<string>} - The path where the context was saved
  */
 async function saveContext(text) {
-  const now = new Date();
-  const filePath = getContextPath(now);
+  return tracer.startActiveSpan('commit_story.context.save_context', async (span) => {
+    try {
+      const now = new Date();
+      const filePath = getContextPath(now);
+      span.setAttribute('commit_story.journal.file_path', filePath);
 
-  // Ensure directory exists
-  await mkdir(dirname(filePath), { recursive: true });
+      // Ensure directory exists
+      await mkdir(dirname(filePath), { recursive: true });
 
-  // Format and append the entry
-  const entry = formatContextEntry(text, now);
-  await appendFile(filePath, entry, 'utf-8');
+      // Format and append the entry
+      const entry = formatContextEntry(text, now);
+      await appendFile(filePath, entry, 'utf-8');
 
-  return filePath;
+      return filePath;
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**
@@ -96,26 +110,32 @@ export function registerContextCaptureTool(server) {
       text: z.string().describe('The context to capture'),
     },
     async ({ text }) => {
-      try {
-        const savedPath = await saveContext(text);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Context saved to ${savedPath}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error saving context: ${error.message}`,
-            },
-          ],
-        };
-      }
+      return tracer.startActiveSpan('commit_story.mcp.capture_context', async (span) => {
+        span.setAttribute('commit_story.context.source', 'mcp');
+        try {
+          const savedPath = await saveContext(text);
+          span.setAttribute('commit_story.journal.file_path', savedPath);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Context saved to ${savedPath}`,
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error saving context: ${error.message}`,
+              },
+            ],
+          };
+        } finally {
+          span.end();
+        }
+      });
     }
   );
 }

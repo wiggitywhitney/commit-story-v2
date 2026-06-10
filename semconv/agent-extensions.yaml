@@ -126,3 +126,13 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.context.gather_context_for_commit"
     span_kind: internal
+  - id: span.commit_story.context.save_context
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.context.save_context"
+    span_kind: internal
+  - id: span.commit_story.mcp.capture_context
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.mcp.capture_context"
+    span_kind: internal
