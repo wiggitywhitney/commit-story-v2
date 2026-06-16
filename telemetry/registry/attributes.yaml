@@ -73,6 +73,22 @@ groups:
           - 42
           - 156
 
+      - id: commit_story.context.messages_filtered
+        type: int
+        stability: development
+        brief: Number of messages dropped during filtering (tool calls, noise, too short, etc.)
+        examples:
+          - 12
+          - 38
+
+      - id: commit_story.context.substantial_messages
+        type: int
+        stability: development
+        brief: Number of substantive user messages (>=50 chars, not simple commands); gates whether dialogue and technical_decisions sections run
+        examples:
+          - 31
+          - 8
+
       - id: commit_story.context.time_window_start
         type: string
         stability: development
