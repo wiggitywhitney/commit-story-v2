@@ -10,6 +10,7 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 - (2026-05-05) Added `service.instance.id: randomUUID()` to `resourceFromAttributes` in `examples/instrumentation.js` so RES-001 passes in IS scoring runs.
 
 ### Added
+- (2026-06-16) Added `commit_story.context.messages_filtered` and `commit_story.context.substantial_messages` to the Weaver registry context attribute group. These two attributes support the traces-to-logs correlation demo: `messages_filtered` captures how many messages were dropped as noise during context collection, and `substantial_messages` tracks how many were substantive enough to gate whether the `dialogue` and `technical_decisions` journal sections run. Both are emitted in structured log bodies alongside the LLM generation span to give the log line context color beyond just trace correlation.
 - (2026-03-21) Installed OTel SDK, OTLP exporter, and Traceloop auto-instrumentation packages for local telemetry (PRD #51, milestone 1)
 - (2026-03-21) Created OTel SDK bootstrap with OTLP exporter, resource attributes, LangChain/MCP auto-instrumentation, and graceful shutdown (PRD #51, milestone 2)
 - (2026-03-21) Added Datadog Agent Docker setup/teardown scripts with vals-based secret injection and port/container safety checks (PRD #51, milestone 3)
