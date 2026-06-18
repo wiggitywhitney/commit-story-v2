@@ -27,24 +27,15 @@ import { saveJournalEntry, discoverReflections } from './managers/journal-manage
 import { isJournalEntriesOnlyCommit, isMergeCommit, shouldSkipMergeCommit, isSafeGitRef } from './utils/commit-analyzer.js';
 import { triggerAutoSummaries } from './managers/auto-summarize.js';
 import { parseSummarizeArgs, runSummarize, runWeeklySummarize, runMonthlySummarize, showSummarizeHelp } from './commands/summarize.js';
+import logger from './logger.js';
 
 /** Exit codes */
 const EXIT_SUCCESS = 0;
 const EXIT_ERROR = 1;
 const EXIT_SKIPPED = 2;
 
-/** Debug mode flag */
+/** Debug mode flag — set by parseArgs, used to enable logger debug level */
 let DEBUG = false;
-
-/**
- * Log debug message if debug mode is enabled
- * @param {...any} args - Arguments to log
- */
-function debug(...args) {
-  if (DEBUG) {
-    console.log('[DEBUG]', ...args);
-  }
-}
 
 /**
  * Parse command line arguments
@@ -96,7 +87,7 @@ function parseArgs() {
  * Show help message
  */
 function showHelp() {
-  console.log(`
+  process.stdout.write(`
 Commit Story - Automated Engineering Journal
 
 Usage:
@@ -165,10 +156,7 @@ function isValidCommitRef(ref) {
  */
 function validateEnvironment() {
   if (!process.env.ANTHROPIC_API_KEY) {
-    console.error(`
-❌ ANTHROPIC_API_KEY not set
-   Set your API key: export ANTHROPIC_API_KEY=your-key
-`);
+    logger.error('ANTHROPIC_API_KEY not set — set your API key: export ANTHROPIC_API_KEY=your-key');
     return false;
   }
   return true;
@@ -214,7 +202,7 @@ async function handleSummarize(args) {
   }
 
   if (parsed.error) {
-    console.error(`\n❌ ${parsed.error}\n`);
+    logger.error(parsed.error);
     process.exit(EXIT_ERROR);
   }
 
@@ -226,9 +214,9 @@ async function handleSummarize(args) {
   // Weekly mode
   if (parsed.weekly) {
     const total = parsed.weeks.length;
-    console.log(`\n📊 Generating weekly summaries for ${total} week${total > 1 ? 's' : ''}...`);
+    logger.info(`Generating weekly summaries for ${total} week${total > 1 ? 's' : ''}...`);
     if (parsed.force) {
-      console.log('   --force: regenerating existing summaries');
+      logger.info('--force: regenerating existing summaries');
     }
 
     let completed = 0;
@@ -238,34 +226,27 @@ async function handleSummarize(args) {
       basePath: '.',
       onProgress: (msg) => {
         completed++;
-        console.log(`   [${completed}/${total}] ${msg}`);
+        logger.info({ progress: `${completed}/${total}` }, msg);
       },
     });
 
-    console.log('');
     if (result.generated.length > 0) {
-      console.log(`✅ Generated: ${result.generated.length} weekly summary(ies)`);
+      logger.info({ count: result.generated.length }, 'Generated weekly summaries');
     }
     if (result.noSummaries.length > 0) {
-      console.log(`⏭️  No daily summaries: ${result.noSummaries.length} week(s)`);
+      logger.info({ count: result.noSummaries.length }, 'No daily summaries found for weeks');
     }
     if (result.alreadyExists.length > 0) {
-      console.log(`⏭️  Already exist: ${result.alreadyExists.length} week(s)`);
+      logger.info({ count: result.alreadyExists.length }, 'Weekly summaries already exist');
     }
     if (result.failed.length > 0) {
-      console.log(`❌ Failed: ${result.failed.length} week(s)`);
-      for (const weekStr of result.failed) {
-        console.log(`   - ${weekStr}`);
-      }
+      logger.warn({ count: result.failed.length, weeks: result.failed }, 'Failed to generate weekly summaries');
     }
     if (result.errors.length > 0) {
-      console.log('');
-      console.log('⚠️  Errors:');
       for (const err of result.errors) {
-        console.log(`   - ${err}`);
+        logger.warn({ error: err }, 'Weekly summary error');
       }
     }
-    console.log('');
 
     process.exit(result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS);
     return;
@@ -274,9 +255,9 @@ async function handleSummarize(args) {
   // Monthly mode
   if (parsed.monthly) {
     const total = parsed.months.length;
-    console.log(`\n📊 Generating monthly summaries for ${total} month${total > 1 ? 's' : ''}...`);
+    logger.info(`Generating monthly summaries for ${total} month${total > 1 ? 's' : ''}...`);
     if (parsed.force) {
-      console.log('   --force: regenerating existing summaries');
+      logger.info('--force: regenerating existing summaries');
     }
 
     let completed = 0;
@@ -286,34 +267,27 @@ async function handleSummarize(args) {
       basePath: '.',
       onProgress: (msg) => {
         completed++;
-        console.log(`   [${completed}/${total}] ${msg}`);
+        logger.info({ progress: `${completed}/${total}` }, msg);
       },
     });
 
-    console.log('');
     if (result.generated.length > 0) {
-      console.log(`✅ Generated: ${result.generated.length} monthly summary(ies)`);
+      logger.info({ count: result.generated.length }, 'Generated monthly summaries');
     }
     if (result.noSummaries.length > 0) {
-      console.log(`⏭️  No weekly summaries: ${result.noSummaries.length} month(s)`);
+      logger.info({ count: result.noSummaries.length }, 'No weekly summaries found for months');
     }
     if (result.alreadyExists.length > 0) {
-      console.log(`⏭️  Already exist: ${result.alreadyExists.length} month(s)`);
+      logger.info({ count: result.alreadyExists.length }, 'Monthly summaries already exist');
     }
     if (result.failed.length > 0) {
-      console.log(`❌ Failed: ${result.failed.length} month(s)`);
-      for (const monthStr of result.failed) {
-        console.log(`   - ${monthStr}`);
-      }
+      logger.warn({ count: result.failed.length, months: result.failed }, 'Failed to generate monthly summaries');
     }
     if (result.errors.length > 0) {
-      console.log('');
-      console.log('⚠️  Errors:');
       for (const err of result.errors) {
-        console.log(`   - ${err}`);
+        logger.warn({ error: err }, 'Monthly summary error');
       }
     }
-    console.log('');
 
     process.exit(result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS);
     return;
@@ -321,9 +295,9 @@ async function handleSummarize(args) {
 
   // Daily mode
   const total = parsed.dates.length;
-  console.log(`\n📊 Generating daily summaries for ${total} date${total > 1 ? 's' : ''}...`);
+  logger.info(`Generating daily summaries for ${total} date${total > 1 ? 's' : ''}...`);
   if (parsed.force) {
-    console.log('   --force: regenerating existing summaries');
+    logger.info('--force: regenerating existing summaries');
   }
 
   let completed = 0;
@@ -333,35 +307,27 @@ async function handleSummarize(args) {
     basePath: '.',
     onProgress: (msg) => {
       completed++;
-      console.log(`   [${completed}/${total}] ${msg}`);
+      logger.info({ progress: `${completed}/${total}` }, msg);
     },
   });
 
-  // Print summary
-  console.log('');
   if (result.generated.length > 0) {
-    console.log(`✅ Generated: ${result.generated.length} summary(ies)`);
+    logger.info({ count: result.generated.length }, 'Generated daily summaries');
   }
   if (result.noEntries.length > 0) {
-    console.log(`⏭️  No entries: ${result.noEntries.length} date(s)`);
+    logger.info({ count: result.noEntries.length }, 'No journal entries found for dates');
   }
   if (result.alreadyExists.length > 0) {
-    console.log(`⏭️  Already exist: ${result.alreadyExists.length} date(s)`);
+    logger.info({ count: result.alreadyExists.length }, 'Daily summaries already exist');
   }
   if (result.failed.length > 0) {
-    console.log(`❌ Failed: ${result.failed.length} date(s)`);
-    for (const dateStr of result.failed) {
-      console.log(`   - ${dateStr}`);
-    }
+    logger.warn({ count: result.failed.length, dates: result.failed }, 'Failed to generate daily summaries');
   }
   if (result.errors.length > 0) {
-    console.log('');
-    console.log('⚠️  Errors:');
     for (const err of result.errors) {
-      console.log(`   - ${err}`);
+      logger.warn({ error: err }, 'Daily summary error');
     }
   }
-  console.log('');
 
   process.exit(result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS);
 }
@@ -371,6 +337,10 @@ async function handleSummarize(args) {
  */
 async function main() {
   const { subcommand, commitRef, help, subcommandArgs } = parseArgs();
+
+  if (DEBUG) {
+    logger.level = 'debug';
+  }
 
   // Show help if requested
   if (help) {
@@ -384,24 +354,18 @@ async function main() {
     return;
   }
 
-  debug('Starting commit-story');
-  debug('Commit ref:', commitRef);
+  logger.debug('Starting commit-story');
+  logger.debug({ commitRef }, 'Commit ref');
 
   // Validate git repository
   if (!isGitRepository()) {
-    console.error(`
-❌ Not a git repository
-   Run commit-story from within a git repository.
-`);
+    logger.error('Not a git repository — run commit-story from within a git repository');
     process.exit(EXIT_ERROR);
   }
 
   // Validate commit reference
   if (!isValidCommitRef(commitRef)) {
-    console.error(`
-❌ Invalid commit reference: ${commitRef}
-   Check that the commit exists: git log --oneline
-`);
+    logger.error({ commitRef }, 'Invalid commit reference — check that the commit exists: git log --oneline');
     process.exit(EXIT_ERROR);
   }
 
@@ -411,28 +375,25 @@ async function main() {
   }
 
   // Check skip conditions BEFORE expensive context collection
-  debug('Checking skip conditions...');
+  logger.debug('Checking skip conditions');
 
   // Skip journal-entries-only commits
   if (isJournalEntriesOnlyCommit(commitRef)) {
-    console.log(`
-⏭️  Skipping: only journal entries changed
-   This commit only modified journal/entries/ files.
-`);
+    logger.info('Skipping: only journal entries changed');
     process.exit(EXIT_SKIPPED);
   }
 
   // Check for merge commits
   const mergeInfo = isMergeCommit(commitRef);
-  debug('Merge commit:', mergeInfo.isMerge);
+  logger.debug({ isMerge: mergeInfo.isMerge }, 'Merge commit check');
 
   // Gather context
-  debug('Gathering context...');
+  logger.debug('Gathering context');
   const context = await gatherContextForCommit(commitRef);
-  debug('Context gathered:', {
+  logger.debug({
     messageCount: context.chat?.messageCount || 0,
     diffLength: context.commit?.diff?.length || 0,
-  });
+  }, 'Context gathered');
 
   // Skip empty merge commits (no chat AND no diff)
   if (mergeInfo.isMerge) {
@@ -440,82 +401,70 @@ async function main() {
     const hasDiff = context.commit && context.commit.diff && context.commit.diff.trim().length > 0;
 
     if (!hasChat && !hasDiff) {
-      console.log(`
-⏭️  Skipping: merge commit with no changes
-   This merge commit has no chat context or code changes.
-`);
+      logger.info('Skipping: merge commit with no changes');
       process.exit(EXIT_SKIPPED);
     }
-    debug('Processing merge commit with:', { hasChat, hasDiff });
+    logger.debug({ hasChat, hasDiff }, 'Processing merge commit');
   }
 
   // Generate journal sections
-  debug('Generating journal sections...');
+  logger.debug('Generating journal sections');
   const sections = await generateJournalSections(context);
-  debug('Sections generated:', {
+  logger.debug({
     hasSummary: !!sections.summary,
     hasDialogue: !!sections.dialogue,
     hasTechnical: !!sections.technicalDecisions,
     errors: sections.errors?.length || 0,
-  });
+  }, 'Sections generated');
 
   // Discover reflections for time window
   const previousCommitTime = getPreviousCommitTime(commitRef);
   const currentCommitTime = context.commit.timestamp;
-  debug('Reflection window:', { from: previousCommitTime, to: currentCommitTime });
+  logger.debug({ from: previousCommitTime, to: currentCommitTime }, 'Reflection window');
 
   const reflections = await discoverReflections(previousCommitTime, currentCommitTime);
-  debug('Reflections found:', reflections.length);
+  logger.debug({ count: reflections.length }, 'Reflections found');
 
   // Save journal entry
-  debug('Saving journal entry...');
-  const savedPath = await saveJournalEntry(sections, context.commit, reflections, '.', { debug });
+  logger.debug('Saving journal entry');
+  const savedPath = await saveJournalEntry(sections, context.commit, reflections, '.', { debug: (msg) => logger.debug(msg) });
 
-  console.log(`
-✅ Journal entry saved
-   ${savedPath}
-`);
+  logger.info({ path: savedPath }, 'Journal entry saved');
 
   // Log any generation errors
   if (sections.errors && sections.errors.length > 0) {
-    console.log('⚠️  Some sections had generation issues:');
     for (const err of sections.errors) {
-      console.log(`   - ${err}`);
+      logger.warn({ error: err }, 'Section generation issue');
     }
   }
 
   // Auto-generate daily and weekly summaries for unsummarized past days/weeks
   if (config.autoSummarize) {
-    debug('Checking for unsummarized days and weeks...');
+    logger.debug('Checking for unsummarized days and weeks');
     try {
       const summaryResult = await triggerAutoSummaries('.', {
-        onProgress: (msg) => debug(msg),
+        onProgress: (msg) => logger.debug(msg),
       });
 
       if (summaryResult.generated.length > 0) {
         const dailyCount = summaryResult.generated.filter(p => p.includes('daily')).length;
         const weeklyCount = summaryResult.generated.filter(p => p.includes('weekly')).length;
         const monthlyCount = summaryResult.generated.filter(p => p.includes('monthly')).length;
-        const parts = [];
-        if (dailyCount > 0) parts.push(`${dailyCount} daily`);
-        if (weeklyCount > 0) parts.push(`${weeklyCount} weekly`);
-        if (monthlyCount > 0) parts.push(`${monthlyCount} monthly`);
-        console.log(`📊 Generated ${parts.join(' + ')} summary(ies)`);
+        logger.info({ dailyCount, weeklyCount, monthlyCount }, 'Auto-generated summaries');
         for (const path of summaryResult.generated) {
-          debug(`   ${path}`);
+          logger.debug({ path }, 'Summary path');
         }
       }
 
       if (summaryResult.failed.length > 0) {
-        console.log(`⚠️  Failed to generate ${summaryResult.failed.length} summary(ies)`);
+        logger.warn({ count: summaryResult.failed.length }, 'Failed to auto-generate summaries');
         for (const dateStr of summaryResult.failed) {
-          console.log(`   - ${dateStr}`);
+          logger.warn({ date: dateStr }, 'Failed summary date');
         }
       }
     } catch (err) {
       // Auto-summarize failures should not block the main flow
-      console.log(`⚠️  Auto-summarize error: ${err.message}`);
-      debug(err.stack);
+      logger.warn(err, 'Auto-summarize error');
     }
   }
 
@@ -524,11 +473,6 @@ async function main() {
 
 // Run main function
 main().catch((error) => {
-  console.error(`
-❌ Unexpected error: ${error.message}
-`);
-  if (DEBUG) {
-    console.error(error.stack);
-  }
+  logger.error(error, 'Unexpected error');
   process.exit(EXIT_ERROR);
 });

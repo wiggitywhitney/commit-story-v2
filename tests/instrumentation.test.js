@@ -13,9 +13,11 @@ const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'
 
 const savedEnv = {
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+  OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
   OTEL_METRICS_EXPORTER: process.env.OTEL_METRICS_EXPORTER,
 };
 delete process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
+delete process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT;
 delete process.env.OTEL_METRICS_EXPORTER;
 
 afterAll(() => {
@@ -50,11 +52,11 @@ vi.mock('@opentelemetry/resources', () => ({
   resourceFromAttributes: (...args) => mockResourceFromAttributes(...args),
 }));
 
-const mockOTLPConstructor = vi.fn();
+const mockOTLPTraceConstructor = vi.fn();
 vi.mock('@opentelemetry/exporter-trace-otlp-http', () => ({
   OTLPTraceExporter: class MockOTLPTraceExporter {
     constructor(config) {
-      mockOTLPConstructor(config);
+      mockOTLPTraceConstructor(config);
     }
   },
 }));
@@ -64,6 +66,48 @@ vi.mock('@opentelemetry/sdk-trace-base', () => ({
   SimpleSpanProcessor: class MockSimpleSpanProcessor {
     constructor(exporter) {
       mockSimpleSpanProcessorConstructor(exporter);
+    }
+  },
+}));
+
+const mockOTLPLogConstructor = vi.fn();
+vi.mock('@opentelemetry/exporter-logs-otlp-http', () => ({
+  OTLPLogExporter: class MockOTLPLogExporter {
+    constructor(config) {
+      mockOTLPLogConstructor(config);
+    }
+  },
+}));
+
+const mockSimpleLogRecordProcessorConstructor = vi.fn();
+const mockLoggerProviderConstructor = vi.fn();
+const mockLoggerProviderForceFlush = vi.fn().mockResolvedValue(undefined);
+vi.mock('@opentelemetry/sdk-logs', () => ({
+  LoggerProvider: class MockLoggerProvider {
+    constructor(config) {
+      mockLoggerProviderConstructor(config);
+      this.forceFlush = mockLoggerProviderForceFlush;
+    }
+  },
+  SimpleLogRecordProcessor: class MockSimpleLogRecordProcessor {
+    constructor(exporter) {
+      mockSimpleLogRecordProcessorConstructor(exporter);
+    }
+  },
+}));
+
+const mockSetGlobalLoggerProvider = vi.fn();
+vi.mock('@opentelemetry/api-logs', () => ({
+  logs: {
+    setGlobalLoggerProvider: (...args) => mockSetGlobalLoggerProvider(...args),
+  },
+}));
+
+const mockPinoInstrumentationConstructor = vi.fn();
+vi.mock('@opentelemetry/instrumentation-pino', () => ({
+  PinoInstrumentation: class MockPinoInstrumentation {
+    constructor(config) {
+      mockPinoInstrumentationConstructor(config);
     }
   },
 }));
@@ -111,11 +155,21 @@ describe('instrumentation bootstrap', () => {
     });
   });
 
-  describe('OTLP exporter', () => {
+  describe('OTLP trace exporter', () => {
     it('targets localhost:4318 HTTP endpoint', () => {
-      expect(mockOTLPConstructor).toHaveBeenCalledWith(
+      expect(mockOTLPTraceConstructor).toHaveBeenCalledWith(
         expect.objectContaining({
           url: 'http://localhost:4318/v1/traces',
+        })
+      );
+    });
+  });
+
+  describe('OTLP log exporter', () => {
+    it('targets localhost:4318 HTTP logs endpoint by default', () => {
+      expect(mockOTLPLogConstructor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: 'http://localhost:4318/v1/logs',
         })
       );
     });
@@ -130,10 +184,25 @@ describe('instrumentation bootstrap', () => {
       const config = mockNodeSDKConstructor.mock.calls[0][0];
       expect(config.spanProcessors).toHaveLength(1);
     });
+  });
 
-    it('does not pass instrumentations to NodeSDK', () => {
+  describe('log record processor', () => {
+    it('uses SimpleLogRecordProcessor for immediate log export', () => {
+      expect(mockSimpleLogRecordProcessorConstructor).toHaveBeenCalled();
+    });
+
+    it('registers LoggerProvider globally', () => {
+      expect(mockSetGlobalLoggerProvider).toHaveBeenCalledWith(
+        expect.objectContaining({ forceFlush: expect.any(Function) })
+      );
+    });
+  });
+
+  describe('pino instrumentation', () => {
+    it('includes PinoInstrumentation in NodeSDK instrumentations', () => {
       const config = mockNodeSDKConstructor.mock.calls[0][0];
-      expect(config.instrumentations).toBeUndefined();
+      expect(config.instrumentations).toHaveLength(1);
+      expect(mockPinoInstrumentationConstructor).toHaveBeenCalled();
     });
   });
 
@@ -160,12 +229,17 @@ describe('instrumentation bootstrap', () => {
       expect(processOnSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
     });
 
-    it('shutdown is idempotent (second call is a no-op)', async () => {
+    it('flushes LoggerProvider before SDK shutdown, and is idempotent', async () => {
       const sigTermHandler = processOnSpy.mock.calls.find(([event]) => event === 'SIGTERM')[1];
       mockShutdown.mockClear();
+      mockLoggerProviderForceFlush.mockClear();
       await sigTermHandler();
-      await sigTermHandler();
+      await sigTermHandler(); // second await drains enough microtasks for sdk.shutdown() to be called
       expect(mockShutdown).toHaveBeenCalledTimes(1);
+      expect(mockLoggerProviderForceFlush).toHaveBeenCalledTimes(1);
+      const forceFlushOrder = mockLoggerProviderForceFlush.mock.invocationCallOrder[0];
+      const sdkShutdownOrder = mockShutdown.mock.invocationCallOrder[0];
+      expect(forceFlushOrder).toBeLessThan(sdkShutdownOrder);
     });
   });
 });
