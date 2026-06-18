@@ -434,7 +434,7 @@ async function main() {
   // Log any generation errors
   if (sections.errors && sections.errors.length > 0) {
     for (const err of sections.errors) {
-      logger.warn(err, 'Section generation issue');
+      logger.warn({ error: err }, 'Section generation issue');
     }
   }
 
