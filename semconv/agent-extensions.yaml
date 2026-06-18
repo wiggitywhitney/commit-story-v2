@@ -141,3 +141,13 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.journal.ensure_directory"
     span_kind: internal
+  - id: span.commit_story.journal.save_entry
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.save_entry"
+    span_kind: internal
+  - id: span.commit_story.journal.discover_reflections
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.discover_reflections"
+    span_kind: internal
