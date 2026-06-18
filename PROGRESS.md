@@ -6,6 +6,9 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 
 ## [Unreleased]
 
+### Added
+- (2026-06-18) Created PRD #77 (Observability Triangle Foundation) to establish structured logging infrastructure on main: pino migration, @opentelemetry/instrumentation-pino bridge, OTLP log exporter in bootstrap, and filelog→OTLP logs pipeline update in otelcol-config.yaml. This makes every spiny-orb eval run automatically inherit log-trace correlation for the Datadog observability triangle demo.
+
 ### Fixed
 - (2026-05-05) Added `service.instance.id: randomUUID()` to `resourceFromAttributes` in `examples/instrumentation.js` so RES-001 passes in IS scoring runs.
 
