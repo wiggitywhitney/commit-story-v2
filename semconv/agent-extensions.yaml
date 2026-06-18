@@ -44,6 +44,21 @@ groups:
         type: boolean
         stability: development
         brief: "Agent-discovered attribute: commit_story.commands.force"
+      - id: commit_story.journal.unsummarized_days_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute:
+          commit_story.journal.unsummarized_days_count"
+      - id: commit_story.journal.unsummarized_weeks_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute:
+          commit_story.journal.unsummarized_weeks_count"
+      - id: commit_story.journal.unsummarized_months_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute:
+          commit_story.journal.unsummarized_months_count"
   - id: span.commit_story.context.collect_messages
     type: span
     stability: development
@@ -221,4 +236,50 @@ groups:
     type: span
     stability: development
     brief: "Agent-discovered span: commit_story.commands.run_monthly_summarize"
+    span_kind: internal
+  - id: span.commit_story.journal.get_days_with_entries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.get_days_with_entries"
+    span_kind: internal
+  - id: span.commit_story.journal.get_summarized_days
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.get_summarized_days"
+    span_kind: internal
+  - id: span.commit_story.journal.find_unsummarized_days
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.find_unsummarized_days"
+    span_kind: internal
+  - id: span.commit_story.journal.get_summarized_weeks
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.get_summarized_weeks"
+    span_kind: internal
+  - id: span.commit_story.journal.get_days_with_daily_summaries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.get_days_with_daily_summaries"
+    span_kind: internal
+  - id: span.commit_story.journal.find_unsummarized_weeks
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.find_unsummarized_weeks"
+    span_kind: internal
+  - id: span.commit_story.journal.get_summarized_months
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.get_summarized_months"
+    span_kind: internal
+  - id: span.commit_story.journal.get_weeks_with_weekly_summaries
+    type: span
+    stability: development
+    brief: "Agent-discovered span:
+      commit_story.journal.get_weeks_with_weekly_summaries"
+    span_kind: internal
+  - id: span.commit_story.journal.find_unsummarized_months
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.find_unsummarized_months"
     span_kind: internal
