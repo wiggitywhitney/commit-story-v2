@@ -66,7 +66,7 @@ This PRD does not instrument any application logic. It only sets up the logging 
 
   Acceptance: `npm test` passes. No `console.log` / `console.error` / `console.warn` calls remain in `src/` (grep to verify). Pino logs appear on stdout as JSON lines.
 
-- [ ] **M2: Add OTLP log exporter to the OTel SDK bootstrap**
+- [x] **M2: Add OTLP log exporter to the OTel SDK bootstrap**
 
   Step 0: Read the existing `examples/instrumentation.js` in full before writing any code. The file already contains `forceFlush`, `resourceFromAttributes`, and a `NodeSDK` configuration — do NOT rewrite it from scratch. Add the log exporter and pino bridge to what is already there.
 
