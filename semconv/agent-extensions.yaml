@@ -1,0 +1,307 @@
+groups:
+  - id: registry.commit_story.agent_extensions
+    type: attribute_group
+    display_name: Agent-Created Attributes
+    brief: Attributes created by the instrumentation agent
+    attributes:
+      - id: commit_story.git.subcommand
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.git.subcommand"
+      - id: commit_story.git.diff_lines
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.git.diff_lines"
+      - id: commit_story.git.parent_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.git.parent_count"
+      - id: commit_story.journal.entries_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.journal.entries_count"
+      - id: commit_story.journal.week_label
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.journal.week_label"
+      - id: commit_story.journal.month_label
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.journal.month_label"
+      - id: commit_story.journal.summaries_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.journal.summaries_count"
+      - id: commit_story.mcp.transport_type
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.mcp.transport_type"
+      - id: commit_story.commands.dates_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.commands.dates_count"
+      - id: commit_story.commands.force
+        type: boolean
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.commands.force"
+      - id: commit_story.journal.unsummarized_days_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute:
+          commit_story.journal.unsummarized_days_count"
+      - id: commit_story.journal.unsummarized_weeks_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute:
+          commit_story.journal.unsummarized_weeks_count"
+      - id: commit_story.journal.unsummarized_months_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute:
+          commit_story.journal.unsummarized_months_count"
+  - id: span.commit_story.context.collect_messages
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.context.collect_messages"
+    span_kind: internal
+  - id: span.commit_story.git.run
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.run"
+    span_kind: internal
+  - id: span.commit_story.git.commit_metadata
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.commit_metadata"
+    span_kind: internal
+  - id: span.commit_story.git.commit_diff
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.commit_diff"
+    span_kind: internal
+  - id: span.commit_story.git.merge_info
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.merge_info"
+    span_kind: internal
+  - id: span.commit_story.git.get_previous_commit_time
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.get_previous_commit_time"
+    span_kind: internal
+  - id: span.commit_story.git.get_commit_data
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.get_commit_data"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_technical
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_technical"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_dialogue
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_dialogue"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_sections
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_sections"
+    span_kind: internal
+  - id: span.commit_story.journal.daily_summary_node
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.daily_summary_node"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_daily_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_daily_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.weekly_summary_node
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.weekly_summary_node"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_weekly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_weekly_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.monthly_summary_node
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.monthly_summary_node"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_monthly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_monthly_summary"
+    span_kind: internal
+  - id: span.commit_story.context.gather_context
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.context.gather_context"
+    span_kind: internal
+  - id: span.commit_story.context.save_context
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.context.save_context"
+    span_kind: internal
+  - id: span.commit_story.mcp.main
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.mcp.main"
+    span_kind: internal
+  - id: span.commit_story.journal.ensure_directory
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.ensure_directory"
+    span_kind: internal
+  - id: span.commit_story.journal.save_entry
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.save_entry"
+    span_kind: internal
+  - id: span.commit_story.journal.discover_reflections
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.discover_reflections"
+    span_kind: internal
+  - id: span.commit_story.journal.read_day_entries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.read_day_entries"
+    span_kind: internal
+  - id: span.commit_story.journal.save_daily_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.save_daily_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_and_save_daily_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span:
+      commit_story.journal.generate_and_save_daily_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.read_week_daily_summaries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.read_week_daily_summaries"
+    span_kind: internal
+  - id: span.commit_story.journal.save_weekly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.save_weekly_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_and_save_weekly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span:
+      commit_story.journal.generate_and_save_weekly_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.read_month_weekly_summaries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.read_month_weekly_summaries"
+    span_kind: internal
+  - id: span.commit_story.journal.save_monthly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.save_monthly_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_and_save_monthly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span:
+      commit_story.journal.generate_and_save_monthly_summary"
+    span_kind: internal
+  - id: span.commit_story.commands.run_summarize
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.commands.run_summarize"
+    span_kind: internal
+  - id: span.commit_story.commands.run_weekly_summarize
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.commands.run_weekly_summarize"
+    span_kind: internal
+  - id: span.commit_story.commands.run_monthly_summarize
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.commands.run_monthly_summarize"
+    span_kind: internal
+  - id: span.commit_story.journal.get_days_with_entries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.get_days_with_entries"
+    span_kind: internal
+  - id: span.commit_story.journal.get_summarized_days
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.get_summarized_days"
+    span_kind: internal
+  - id: span.commit_story.journal.find_unsummarized_days
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.find_unsummarized_days"
+    span_kind: internal
+  - id: span.commit_story.journal.get_summarized_weeks
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.get_summarized_weeks"
+    span_kind: internal
+  - id: span.commit_story.journal.get_days_with_daily_summaries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.get_days_with_daily_summaries"
+    span_kind: internal
+  - id: span.commit_story.journal.find_unsummarized_weeks
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.find_unsummarized_weeks"
+    span_kind: internal
+  - id: span.commit_story.journal.get_summarized_months
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.get_summarized_months"
+    span_kind: internal
+  - id: span.commit_story.journal.get_weeks_with_weekly_summaries
+    type: span
+    stability: development
+    brief: "Agent-discovered span:
+      commit_story.journal.get_weeks_with_weekly_summaries"
+    span_kind: internal
+  - id: span.commit_story.journal.find_unsummarized_months
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.find_unsummarized_months"
+    span_kind: internal
+  - id: span.commit_story.commands.trigger_auto_summaries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.commands.trigger_auto_summaries"
+    span_kind: internal
+  - id: span.commit_story.commands.trigger_auto_weekly_summaries
+    type: span
+    stability: development
+    brief: "Agent-discovered span:
+      commit_story.commands.trigger_auto_weekly_summaries"
+    span_kind: internal
+  - id: span.commit_story.commands.trigger_auto_monthly_summaries
+    type: span
+    stability: development
+    brief: "Agent-discovered span:
+      commit_story.commands.trigger_auto_monthly_summaries"
+    span_kind: internal
+  - id: span.commit_story.cli.main
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.cli.main"
+    span_kind: internal

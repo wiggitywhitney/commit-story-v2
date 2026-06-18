@@ -17,6 +17,7 @@
  *   2 - Skipped (journal-only commit, empty merge)
  */
 
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import './utils/config.js'; // Load environment variables first
 import './traceloop-init.js'; // Register traceloop auto-instrumentation (if enabled)
 import { config } from './utils/config.js';
@@ -28,6 +29,8 @@ import { isJournalEntriesOnlyCommit, isMergeCommit, shouldSkipMergeCommit, isSaf
 import { triggerAutoSummaries } from './managers/auto-summarize.js';
 import { parseSummarizeArgs, runSummarize, runWeeklySummarize, runMonthlySummarize, showSummarizeHelp } from './commands/summarize.js';
 import logger from './logger.js';
+
+const tracer = trace.getTracer('commit-story');
 
 /** Exit codes */
 const EXIT_SUCCESS = 0;
@@ -336,139 +339,153 @@ async function handleSummarize(args) {
  * Main entry point
  */
 async function main() {
-  const { subcommand, commitRef, help, subcommandArgs } = parseArgs();
-
-  if (DEBUG) {
-    logger.level = 'debug';
-  }
-
-  // Show help if requested
-  if (help) {
-    showHelp();
-    process.exit(EXIT_SUCCESS);
-  }
-
-  // Route to subcommand handlers
-  if (subcommand === 'summarize') {
-    await handleSummarize(subcommandArgs);
-    return;
-  }
-
-  logger.debug('Starting commit-story');
-  logger.debug({ commitRef }, 'Commit ref');
-
-  // Validate git repository
-  if (!isGitRepository()) {
-    logger.error('Not a git repository — run commit-story from within a git repository');
-    process.exit(EXIT_ERROR);
-  }
-
-  // Validate commit reference
-  if (!isValidCommitRef(commitRef)) {
-    logger.error({ commitRef }, 'Invalid commit reference — check that the commit exists: git log --oneline');
-    process.exit(EXIT_ERROR);
-  }
-
-  // Validate environment
-  if (!validateEnvironment()) {
-    process.exit(EXIT_ERROR);
-  }
-
-  // Check skip conditions BEFORE expensive context collection
-  logger.debug('Checking skip conditions');
-
-  // Skip journal-entries-only commits
-  if (isJournalEntriesOnlyCommit(commitRef)) {
-    logger.info('Skipping: only journal entries changed');
-    process.exit(EXIT_SKIPPED);
-  }
-
-  // Check for merge commits
-  const mergeInfo = isMergeCommit(commitRef);
-  logger.debug({ isMerge: mergeInfo.isMerge }, 'Merge commit check');
-
-  // Gather context
-  logger.debug('Gathering context');
-  const context = await gatherContextForCommit(commitRef);
-  logger.debug({
-    messageCount: context.chat?.messageCount || 0,
-    diffLength: context.commit?.diff?.length || 0,
-  }, 'Context gathered');
-
-  // Skip empty merge commits (no chat AND no diff)
-  if (mergeInfo.isMerge) {
-    const hasChat = context.chat && context.chat.messageCount > 0;
-    const hasDiff = context.commit && context.commit.diff && context.commit.diff.trim().length > 0;
-
-    if (!hasChat && !hasDiff) {
-      logger.info('Skipping: merge commit with no changes');
-      process.exit(EXIT_SKIPPED);
-    }
-    logger.debug({ hasChat, hasDiff }, 'Processing merge commit');
-  }
-
-  // Generate journal sections
-  logger.debug('Generating journal sections');
-  const sections = await generateJournalSections(context);
-  logger.debug({
-    hasSummary: !!sections.summary,
-    hasDialogue: !!sections.dialogue,
-    hasTechnical: !!sections.technicalDecisions,
-    errors: sections.errors?.length || 0,
-  }, 'Sections generated');
-
-  // Discover reflections for time window
-  const previousCommitTime = getPreviousCommitTime(commitRef);
-  const currentCommitTime = context.commit.timestamp;
-  logger.debug({ from: previousCommitTime, to: currentCommitTime }, 'Reflection window');
-
-  const reflections = await discoverReflections(previousCommitTime, currentCommitTime);
-  logger.debug({ count: reflections.length }, 'Reflections found');
-
-  // Save journal entry
-  logger.debug('Saving journal entry');
-  const savedPath = await saveJournalEntry(sections, context.commit, reflections, '.', { debug: (msg) => logger.debug(msg) });
-
-  logger.info({ path: savedPath }, 'Journal entry saved');
-
-  // Log any generation errors
-  if (sections.errors && sections.errors.length > 0) {
-    for (const err of sections.errors) {
-      logger.warn({ error: err }, 'Section generation issue');
-    }
-  }
-
-  // Auto-generate daily and weekly summaries for unsummarized past days/weeks
-  if (config.autoSummarize) {
-    logger.debug('Checking for unsummarized days and weeks');
+  return tracer.startActiveSpan('commit_story.cli.main', async (span) => {
     try {
-      const summaryResult = await triggerAutoSummaries('.', {
-        onProgress: (msg) => logger.debug(msg),
-      });
+      const { subcommand, commitRef, help, subcommandArgs } = parseArgs();
+      span.setAttribute('vcs.ref.head.revision', commitRef);
+      if (subcommand != null) {
+        span.setAttribute('commit_story.git.subcommand', subcommand);
+      }
 
-      if (summaryResult.generated.length > 0) {
-        const dailyCount = summaryResult.generated.filter(p => p.includes('daily')).length;
-        const weeklyCount = summaryResult.generated.filter(p => p.includes('weekly')).length;
-        const monthlyCount = summaryResult.generated.filter(p => p.includes('monthly')).length;
-        logger.info({ dailyCount, weeklyCount, monthlyCount }, 'Auto-generated summaries');
-        for (const path of summaryResult.generated) {
-          logger.debug({ path }, 'Summary path');
+      if (DEBUG) {
+        logger.level = 'debug';
+      }
+
+      // Show help if requested
+      if (help) {
+        showHelp();
+        process.exit(EXIT_SUCCESS);
+      }
+
+      // Route to subcommand handlers
+      if (subcommand === 'summarize') {
+        await handleSummarize(subcommandArgs);
+        return;
+      }
+
+      logger.debug('Starting commit-story');
+      logger.debug({ commitRef }, 'Commit ref');
+
+      // Validate git repository
+      if (!isGitRepository()) {
+        logger.error('Not a git repository — run commit-story from within a git repository');
+        process.exit(EXIT_ERROR);
+      }
+
+      // Validate commit reference
+      if (!isValidCommitRef(commitRef)) {
+        logger.error({ commitRef }, 'Invalid commit reference — check that the commit exists: git log --oneline');
+        process.exit(EXIT_ERROR);
+      }
+
+      // Validate environment
+      if (!validateEnvironment()) {
+        process.exit(EXIT_ERROR);
+      }
+
+      // Check skip conditions BEFORE expensive context collection
+      logger.debug('Checking skip conditions');
+
+      // Skip journal-entries-only commits
+      if (isJournalEntriesOnlyCommit(commitRef)) {
+        logger.info('Skipping: only journal entries changed');
+        process.exit(EXIT_SKIPPED);
+      }
+
+      // Check for merge commits
+      const mergeInfo = isMergeCommit(commitRef);
+      logger.debug({ isMerge: mergeInfo.isMerge }, 'Merge commit check');
+
+      // Gather context
+      logger.debug('Gathering context');
+      const context = await gatherContextForCommit(commitRef);
+      logger.debug({
+        messageCount: context.chat?.messageCount || 0,
+        diffLength: context.commit?.diff?.length || 0,
+      }, 'Context gathered');
+
+      // Skip empty merge commits (no chat AND no diff)
+      if (mergeInfo.isMerge) {
+        const hasChat = context.chat && context.chat.messageCount > 0;
+        const hasDiff = context.commit && context.commit.diff && context.commit.diff.trim().length > 0;
+
+        if (!hasChat && !hasDiff) {
+          logger.info('Skipping: merge commit with no changes');
+          process.exit(EXIT_SKIPPED);
+        }
+        logger.debug({ hasChat, hasDiff }, 'Processing merge commit');
+      }
+
+      // Generate journal sections
+      logger.debug('Generating journal sections');
+      const sections = await generateJournalSections(context);
+      logger.debug({
+        hasSummary: !!sections.summary,
+        hasDialogue: !!sections.dialogue,
+        hasTechnical: !!sections.technicalDecisions,
+        errors: sections.errors?.length || 0,
+      }, 'Sections generated');
+
+      // Discover reflections for time window
+      const previousCommitTime = getPreviousCommitTime(commitRef);
+      const currentCommitTime = context.commit.timestamp;
+      logger.debug({ from: previousCommitTime, to: currentCommitTime }, 'Reflection window');
+
+      const reflections = await discoverReflections(previousCommitTime, currentCommitTime);
+      logger.debug({ count: reflections.length }, 'Reflections found');
+
+      // Save journal entry
+      logger.debug('Saving journal entry');
+      const savedPath = await saveJournalEntry(sections, context.commit, reflections, '.', { debug: (msg) => logger.debug(msg) });
+
+      logger.info({ path: savedPath }, 'Journal entry saved');
+
+      // Log any generation errors
+      if (sections.errors && sections.errors.length > 0) {
+        for (const err of sections.errors) {
+          logger.warn({ error: err }, 'Section generation issue');
         }
       }
 
-      if (summaryResult.failed.length > 0) {
-        logger.warn({ count: summaryResult.failed.length }, 'Failed to auto-generate summaries');
-        for (const dateStr of summaryResult.failed) {
-          logger.warn({ date: dateStr }, 'Failed summary date');
+      // Auto-generate daily and weekly summaries for unsummarized past days/weeks
+      if (config.autoSummarize) {
+        logger.debug('Checking for unsummarized days and weeks');
+        try {
+          const summaryResult = await triggerAutoSummaries('.', {
+            onProgress: (msg) => logger.debug(msg),
+          });
+
+          if (summaryResult.generated.length > 0) {
+            const dailyCount = summaryResult.generated.filter(p => p.includes('daily')).length;
+            const weeklyCount = summaryResult.generated.filter(p => p.includes('weekly')).length;
+            const monthlyCount = summaryResult.generated.filter(p => p.includes('monthly')).length;
+            logger.info({ dailyCount, weeklyCount, monthlyCount }, 'Auto-generated summaries');
+            for (const path of summaryResult.generated) {
+              logger.debug({ path }, 'Summary path');
+            }
+          }
+
+          if (summaryResult.failed.length > 0) {
+            logger.warn({ count: summaryResult.failed.length }, 'Failed to auto-generate summaries');
+            for (const dateStr of summaryResult.failed) {
+              logger.warn({ date: dateStr }, 'Failed summary date');
+            }
+          }
+        } catch (err) {
+          // Auto-summarize failures should not block the main flow
+          logger.warn(err, 'Auto-summarize error');
         }
       }
-    } catch (err) {
-      // Auto-summarize failures should not block the main flow
-      logger.warn(err, 'Auto-summarize error');
+
+      process.exit(EXIT_SUCCESS);
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
     }
-  }
-
-  process.exit(EXIT_SUCCESS);
+  });
 }
 
 // Run main function
