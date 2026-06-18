@@ -87,7 +87,7 @@ function parseArgs() {
  * Show help message
  */
 function showHelp() {
-  logger.info(`
+  process.stdout.write(`
 Commit Story - Automated Engineering Journal
 
 Usage:
@@ -244,7 +244,7 @@ async function handleSummarize(args) {
     }
     if (result.errors.length > 0) {
       for (const err of result.errors) {
-        logger.warn(err);
+        logger.warn({ error: err }, 'Weekly summary error');
       }
     }
 
@@ -285,7 +285,7 @@ async function handleSummarize(args) {
     }
     if (result.errors.length > 0) {
       for (const err of result.errors) {
-        logger.warn(err);
+        logger.warn({ error: err }, 'Monthly summary error');
       }
     }
 
@@ -325,7 +325,7 @@ async function handleSummarize(args) {
   }
   if (result.errors.length > 0) {
     for (const err of result.errors) {
-      logger.warn(err);
+      logger.warn({ error: err }, 'Daily summary error');
     }
   }
 

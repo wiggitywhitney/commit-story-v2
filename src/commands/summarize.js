@@ -399,5 +399,5 @@ Examples:
   npx commit-story summarize --monthly 2026-02
   npx commit-story summarize --monthly 2026-02 --force
 `;
-  logger.info(helpText);
+  process.stdout.write(helpText);
 }

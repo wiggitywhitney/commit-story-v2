@@ -73,7 +73,7 @@ const shutdownAndExit = (exitCode) => {
   isShuttingDown = true;
   process.exitCode = exitCode;
   loggerProvider.forceFlush()
-    .catch(() => {})
+    .catch((err) => console.error('OTel log provider flush error:', err))
     .finally(() =>
       sdk.shutdown()
         .catch((err) => console.error('OTel SDK shutdown error:', err))
