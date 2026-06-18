@@ -5,6 +5,7 @@ import { generateAndSaveDailySummary, generateAndSaveWeeklySummary, generateAndS
 import { readDayEntries } from '../managers/summary-manager.js';
 import { getSummaryPath } from '../utils/journal-paths.js';
 import { access } from 'node:fs/promises';
+import logger from '../logger.js';
 
 /**
  * Validate a YYYY-MM-DD date string.
@@ -398,5 +399,5 @@ Examples:
   npx commit-story summarize --monthly 2026-02
   npx commit-story summarize --monthly 2026-02 --force
 `;
-  console.log(helpText); // eslint-disable-line no-console
+  logger.info(helpText);
 }

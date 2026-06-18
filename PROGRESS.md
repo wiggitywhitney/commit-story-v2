@@ -7,6 +7,7 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 ## [Unreleased]
 
 ### Added
+- (2026-06-18) Replaced all `console.log`/`console.error`/`console.warn` calls in `src/` with pino structured logging. Created a shared `src/logger.js` that outputs JSON to stdout for the main CLI; the MCP server gets its own pino instance pointed at stderr (stdout is reserved for JSON-RPC). Added `pino` and `@opentelemetry/instrumentation-pino` as dependencies. When the OTel SDK is active, the pino bridge will automatically inject `trace_id` and `span_id` into log records — this is the logs leg of the observability triangle that makes log-trace correlation in Datadog possible without any application-level span.spanContext() calls.
 - (2026-06-18) Created PRD #77 (Observability Triangle Foundation) to establish structured logging infrastructure on main: pino migration, @opentelemetry/instrumentation-pino bridge, OTLP log exporter in bootstrap, and filelog→OTLP logs pipeline update in otelcol-config.yaml. This makes every spiny-orb eval run automatically inherit log-trace correlation for the Datadog observability triangle demo.
 
 ### Fixed

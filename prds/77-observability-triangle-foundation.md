@@ -51,7 +51,8 @@ This PRD does not instrument any application logic. It only sets up the logging 
 
 ## Milestones
 
-- [ ] **M1: Switch to pino and add OTel log bridge**
+- [x] **M1: Switch to pino and add OTel log bridge**
+**Step 0 (pre-research):** Read related research before starting: [Research: pino](../docs/research/pino.md)
 
   Replace `console.log` calls with pino throughout `src/`. Add `pino` as a dependency. Add `@opentelemetry/instrumentation-pino` as a dependency.
 

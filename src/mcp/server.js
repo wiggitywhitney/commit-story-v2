@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// ABOUTME: MCP server for commit-story — exposes journal_add_reflection and journal_capture_context tools
+// ABOUTME: Runs on stdio transport; all logging goes to stderr (stdout is reserved for JSON-RPC)
 /**
  * Commit Story MCP Server
  *
@@ -24,6 +26,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerReflectionTool } from './tools/reflection-tool.js';
 import { registerContextCaptureTool } from './tools/context-capture-tool.js';
+import pino from 'pino';
+
+// stdout is reserved for JSON-RPC — logger must write to stderr
+const logger = pino({ level: 'info' }, process.stderr);
 
 /**
  * Create and configure the MCP server
@@ -51,12 +57,11 @@ async function main() {
 
   await server.connect(transport);
 
-  // Log to stderr (stdout is reserved for JSON-RPC)
-  console.error('Commit Story MCP Server running on stdio');
+  logger.info('Commit Story MCP Server running on stdio');
 }
 
 // Run the server
 main().catch((error) => {
-  console.error('Fatal error in MCP server:', error);
+  logger.error(error, 'Fatal error in MCP server');
   process.exit(1);
 });
