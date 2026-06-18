@@ -67,15 +67,17 @@ This PRD does not instrument any application logic. It only sets up the logging 
 
 - [ ] **M2: Add OTLP log exporter to the OTel SDK bootstrap**
 
+  Step 0: Read the existing `examples/instrumentation.js` in full before writing any code. The file already contains `forceFlush`, `resourceFromAttributes`, and a `NodeSDK` configuration — do NOT rewrite it from scratch. Add the log exporter and pino bridge to what is already there.
+
   Update `examples/instrumentation.js` (the OTel SDK bootstrap at the repo root) to:
   1. Import `LoggerProvider`, `SimpleLogRecordProcessor` from `@opentelemetry/sdk-logs` and `OTLPLogExporter` from `@opentelemetry/exporter-logs-otlp-http`
   2. Create a `LoggerProvider` with a `SimpleLogRecordProcessor` wrapping an `OTLPLogExporter` pointed at `http://localhost:4318/v1/logs` (same host/port as the trace exporter)
   3. Call `logs.setGlobalLoggerProvider(loggerProvider)` to register it
   4. Add `PinoInstrumentation` from `@opentelemetry/instrumentation-pino` to the `instrumentations` array in the `NodeSDK` config
 
-  Use `SimpleLogRecordProcessor` (not `BatchLogRecordProcessor`) — commit-story is a CLI app that exits after a run, and batch processors may not flush before process exit. `SimpleLogRecordProcessor` exports each log record immediately.
+  Use `SimpleLogRecordProcessor`. Do NOT use `BatchLogRecordProcessor` — commit-story is a CLI app that exits after a run, and batch processors may not flush before process exit. `SimpleLogRecordProcessor` exports each log record immediately.
 
-  Read `~/.claude/rules/otel-logs-bridge-gotchas.md` before writing any code — there are non-obvious gotchas about SDK initialization order and the experimental status of `@opentelemetry/sdk-logs`.
+  Read both `~/.claude/rules/otel-logs-bridge-gotchas.md` and `~/.claude/rules/datadog-log-trace-gotchas.md` before writing any code. The first covers SDK initialization order and the experimental status of `@opentelemetry/sdk-logs`. The second covers how Datadog correlates OTel `trace_id`/`span_id` fields (no 64-bit decimal conversion needed, OTel native format accepted natively) and the `service.name` remapping limitation.
 
   **`service.name` remapping note**: OTel resource attributes (including `service.name`, `service.version`, `deployment.environment`) are NOT automatically converted to Datadog's unified service tags in the log pipeline. Logs will appear in Datadog Logs Explorer but may not be tagged with `service:commit-story` by default, which affects the "View related logs" navigation from APM traces. Per `~/.claude/rules/datadog-log-trace-gotchas.md`: configure manual attribute remapping via Datadog Log Profiles or "Preprocessing for JSON logs" if the service tag is absent. Document this as a known limitation in the M4 verification notes if it applies.
 
@@ -93,7 +95,7 @@ This PRD does not instrument any application logic. It only sets up the logging 
 
   Note: The `otlp` receiver already handles OTLP traces on port 4318. OTLP logs from the pino bridge use the same receiver and port — the Collector routes by signal type. No new port or receiver block is needed.
 
-  **Warning**: `otelcol-config.yaml` is the shared config for all eval targets (commit-story-v2, taze, release-it). Changes to this file affect every target. The filelog receiver is commit-story-v2-specific — removing it does not affect the other targets. The OTLP logs pipeline addition is also harmless for other targets (they simply won't emit OTLP logs if their bootstrap doesn't include a log exporter). Confirm the traces and metrics pipelines are unchanged before committing.
+  **Warning**: `otelcol-config.yaml` is the shared config for all eval targets (commit-story-v2, taze, release-it). Changes to this file affect every target. The filelog receiver is commit-story-v2-specific — removing it does not affect the other targets. The OTLP logs pipeline addition is also harmless for other targets (they simply won't emit OTLP logs if their bootstrap doesn't include a log exporter). Do NOT modify the `traces` or `metrics` pipeline blocks — only the `logs` pipeline changes.
 
   Acceptance: `otelcol-contrib --config evaluation/is/otelcol-config.yaml` starts without errors. No `filelog` receiver or tee instructions remain in the file.
 
