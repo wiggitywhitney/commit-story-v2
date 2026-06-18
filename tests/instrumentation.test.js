@@ -13,9 +13,11 @@ const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'
 
 const savedEnv = {
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+  OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
   OTEL_METRICS_EXPORTER: process.env.OTEL_METRICS_EXPORTER,
 };
 delete process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
+delete process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT;
 delete process.env.OTEL_METRICS_EXPORTER;
 
 afterAll(() => {
@@ -79,13 +81,11 @@ vi.mock('@opentelemetry/exporter-logs-otlp-http', () => ({
 
 const mockSimpleLogRecordProcessorConstructor = vi.fn();
 const mockLoggerProviderConstructor = vi.fn();
-const mockLoggerProviderShutdown = vi.fn().mockResolvedValue(undefined);
 const mockLoggerProviderForceFlush = vi.fn().mockResolvedValue(undefined);
 vi.mock('@opentelemetry/sdk-logs', () => ({
   LoggerProvider: class MockLoggerProvider {
     constructor(config) {
       mockLoggerProviderConstructor(config);
-      this.shutdown = mockLoggerProviderShutdown;
       this.forceFlush = mockLoggerProviderForceFlush;
     }
   },
@@ -166,7 +166,7 @@ describe('instrumentation bootstrap', () => {
   });
 
   describe('OTLP log exporter', () => {
-    it('targets localhost:4318 HTTP logs endpoint', () => {
+    it('targets localhost:4318 HTTP logs endpoint by default', () => {
       expect(mockOTLPLogConstructor).toHaveBeenCalledWith(
         expect.objectContaining({
           url: 'http://localhost:4318/v1/logs',
@@ -193,7 +193,7 @@ describe('instrumentation bootstrap', () => {
 
     it('registers LoggerProvider globally', () => {
       expect(mockSetGlobalLoggerProvider).toHaveBeenCalledWith(
-        expect.objectContaining({ shutdown: expect.any(Function) })
+        expect.objectContaining({ forceFlush: expect.any(Function) })
       );
     });
   });
@@ -229,12 +229,17 @@ describe('instrumentation bootstrap', () => {
       expect(processOnSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
     });
 
-    it('shutdown is idempotent (second call is a no-op)', async () => {
+    it('flushes LoggerProvider before SDK shutdown, and is idempotent', async () => {
       const sigTermHandler = processOnSpy.mock.calls.find(([event]) => event === 'SIGTERM')[1];
       mockShutdown.mockClear();
+      mockLoggerProviderForceFlush.mockClear();
       await sigTermHandler();
-      await sigTermHandler();
+      await sigTermHandler(); // second await drains enough microtasks for sdk.shutdown() to be called
       expect(mockShutdown).toHaveBeenCalledTimes(1);
+      expect(mockLoggerProviderForceFlush).toHaveBeenCalledTimes(1);
+      const forceFlushOrder = mockLoggerProviderForceFlush.mock.invocationCallOrder[0];
+      const sdkShutdownOrder = mockShutdown.mock.invocationCallOrder[0];
+      expect(forceFlushOrder).toBeLessThan(sdkShutdownOrder);
     });
   });
 });

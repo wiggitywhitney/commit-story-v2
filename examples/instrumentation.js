@@ -40,7 +40,7 @@ const traceExporter = new OTLPTraceExporter({
 // SimpleLogRecordProcessor exports each log record immediately — correct for CLI apps
 // that may exit before a BatchLogRecordProcessor flushes.
 const logExporter = new OTLPLogExporter({
-  url: 'http://localhost:4318/v1/logs',
+  url: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT || 'http://localhost:4318/v1/logs',
 });
 const loggerProvider = new LoggerProvider({
   resource,
