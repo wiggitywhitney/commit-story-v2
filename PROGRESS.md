@@ -12,6 +12,7 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 - (2026-06-18) Created PRD #77 (Observability Triangle Foundation) to establish structured logging infrastructure on main: pino migration, @opentelemetry/instrumentation-pino bridge, OTLP log exporter in bootstrap, and filelog→OTLP logs pipeline update in otelcol-config.yaml. This makes every spiny-orb eval run automatically inherit log-trace correlation for the Datadog observability triangle demo.
 
 ### Fixed
+- (2026-06-18) Fixed acceptance gate (`tests/acceptance-gate.test.js`) failing in the pre-PR hook with "env: node: No such file or directory". The `vals exec` command was missing the `-i` flag, so it ran in a stripped environment where `/opt/homebrew/bin` (where node lives) was not on PATH. Also stripped gateway env vars from the command so the LangGraph API call goes directly to the API rather than routing through the enterprise gateway (which rejects subprocess calls).
 - (2026-05-05) Added `service.instance.id: randomUUID()` to `resourceFromAttributes` in `examples/instrumentation.js` so RES-001 passes in IS scoring runs.
 
 ### Added

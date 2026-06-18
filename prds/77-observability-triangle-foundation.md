@@ -84,7 +84,7 @@ This PRD does not instrument any application logic. It only sets up the logging 
 
   Acceptance: When commit-story runs with `--import examples/instrumentation.js` and the OTel Collector is running, log records appear in Datadog Logs Explorer with `trace_id` and `span_id` fields populated on log lines emitted during active spans.
 
-- [ ] **M3: Update otelcol-config.yaml — replace filelog with OTLP logs pipeline**
+- [x] **M3: Update otelcol-config.yaml — replace filelog with OTLP logs pipeline**
 
   This milestone is in a **different repository**: `wiggitywhitney/spinybacked-orbweaver-eval`, located at `~/Documents/Repositories/spinybacked-orbweaver-eval/` on the development machine. The file to edit is `evaluation/is/otelcol-config.yaml` in that repo. Work on a feature branch in that repo, not in commit-story-v2.
 
