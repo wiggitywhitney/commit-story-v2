@@ -357,8 +357,8 @@ export function getMonthBoundaries(monthStr) {
 }
 
 /**
- * Read all weekly summaries that overlap with a given month.
- * A week overlaps if any day of the week (Monday-Sunday) falls within the month.
+ * Read all weekly summaries that belong to a given month.
+ * A week belongs to the month that contains its Monday.
  * @param {string} monthStr - Month string like "2026-02"
  * @param {string} basePath - Base path for journal (default: current directory)
  * @returns {Promise<Array<{ weekLabel: string, content: string }>>} Weekly summaries sorted by week
@@ -386,7 +386,7 @@ export async function readMonthWeeklySummaries(monthStr, basePath = '.') {
 
     // Check if this week overlaps with the month
     // Import getWeekBoundaries locally to avoid circular dependency concerns
-    const { monday, sunday } = getWeekBoundaries(weekLabel);
+    const { monday } = getWeekBoundaries(weekLabel);
 
     // A week belongs to the month that contains its Monday (matches summary-detector.js)
     if (monday >= firstDay && monday <= lastDay) {
