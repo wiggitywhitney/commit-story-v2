@@ -1,6 +1,7 @@
 // ABOUTME: OTel SDK bootstrap — loaded via Node.js --import flag before application code
 // ABOUTME: Configures tracing and logging with OTLP HTTP exporters for local Datadog Agent on port 4318
 
+import { register } from 'node:module';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
@@ -8,6 +9,7 @@ import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { LoggerProvider, SimpleLogRecordProcessor } from '@opentelemetry/sdk-logs';
 import { logs } from '@opentelemetry/api-logs';
 import { PinoInstrumentation } from '@opentelemetry/instrumentation-pino';
+import { createAddHookMessageChannel } from 'import-in-the-middle';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -17,6 +19,14 @@ import { dirname, join } from 'node:path';
 // Read version from package.json
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
+
+// Register the IITM ESM loader hook before sdk.start() so PinoInstrumentation
+// can intercept pino when it loads. On Node.js v22+, ESM-imported CJS modules
+// do not route through require-in-the-middle's hooks without this registration.
+// Must run before any application code imports pino.
+const { registerOptions, waitForAllMessagesAcknowledged } = createAddHookMessageChannel();
+register('import-in-the-middle/hook.mjs', import.meta.url, registerOptions);
+await waitForAllMessagesAcknowledged();
 
 // Disable auto-metrics — SDK 2.x auto-instantiates a Metrics SDK.
 // For IS scoring runs: set IS_SCORING_RUN=1 to enable the metrics exporter so
