@@ -144,6 +144,16 @@ describe('readWeekDailySummaries', () => {
     expect(summaries[0].date).toBe('2026-03-02');
     expect(summaries[1].date).toBe('2026-03-04');
   });
+
+  it('rethrows non-ENOENT errors from daily file reads', async () => {
+    // Create the daily summary path as a directory — readFile on a directory throws EISDIR, not ENOENT
+    const dir = join(tmpDir, 'journal', 'summaries', 'daily');
+    await mkdir(dir, { recursive: true });
+    // 2026-W10 Monday is 2026-03-02
+    await mkdir(join(dir, '2026-03-02.md'));
+
+    await expect(readWeekDailySummaries('2026-W10', tmpDir)).rejects.toThrow();
+  });
 });
 
 // ---------------------------------------------------------------------------

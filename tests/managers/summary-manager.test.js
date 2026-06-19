@@ -116,6 +116,15 @@ describe('readDayEntries', () => {
     const entries = await readDayEntries(new Date(2026, 1, 22), tmpDir);
     expect(entries).toEqual([]);
   });
+
+  it('rethrows non-ENOENT errors', async () => {
+    // Create the entry path as a directory — readFile on a directory throws EISDIR, not ENOENT
+    const dir = join(tmpDir, 'journal', 'entries', '2026-02');
+    mkdirSync(dir, { recursive: true });
+    mkdirSync(join(dir, '2026-02-22.md'));
+
+    await expect(readDayEntries(new Date(2026, 1, 22), tmpDir)).rejects.toThrow();
+  });
 });
 
 describe('formatDailySummary', () => {

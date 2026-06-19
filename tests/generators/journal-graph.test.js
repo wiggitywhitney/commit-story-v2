@@ -549,6 +549,19 @@ describe('cleanDialogueOutput', () => {
     expect(result).toContain('Line one\nLine two');
     expect(result).not.toContain('\\n');
   });
+
+  it('preserves multi-line assistant responses that continue without > prefix', () => {
+    const raw = [
+      '> **Human:** "How should we handle this?"',
+      '> **Assistant:** "Two issues from CodeRabbit:',
+      '1. The sensitive filter is matching filenames',
+      '2. The catch block swallows errors"',
+    ].join('\n');
+    const result = cleanDialogueOutput(raw);
+    expect(result).toContain('Two issues from CodeRabbit:');
+    expect(result).toContain('1. The sensitive filter is matching filenames');
+    expect(result).toContain('2. The catch block swallows errors"');
+  });
 });
 
 describe('cleanTechnicalOutput', () => {
