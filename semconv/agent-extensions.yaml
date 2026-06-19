@@ -155,3 +155,40 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.journal.discover_reflections"
     span_kind: internal
+  - id: span.commit_story.journal.read_day_entries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.read_day_entries"
+    span_kind: internal
+  - id: span.commit_story.journal.save_daily_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.save_daily_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_and_save_daily_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span:
+      commit_story.journal.generate_and_save_daily_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.save_weekly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.save_weekly_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_and_save_weekly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span:
+      commit_story.journal.generate_and_save_weekly_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.save_monthly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.save_monthly_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.monthly_summary_pipeline
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.monthly_summary_pipeline"
+    span_kind: internal
