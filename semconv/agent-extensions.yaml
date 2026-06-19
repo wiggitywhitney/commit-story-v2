@@ -56,3 +56,23 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.context.gather_context_for_commit"
     span_kind: internal
+  - id: span.commit_story.journal.summary_node
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.summary_node"
+    span_kind: internal
+  - id: span.commit_story.journal.technical_node
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.technical_node"
+    span_kind: internal
+  - id: span.commit_story.journal.dialogue_node
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.dialogue_node"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_sections
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_sections"
+    span_kind: internal
