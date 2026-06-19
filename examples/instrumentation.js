@@ -41,6 +41,7 @@ const resource = resourceFromAttributes({
   'service.version': pkg.version,
   'deployment.environment': process.env.NODE_ENV || 'development',
   'service.instance.id': randomUUID(),
+  'git.repository.id': 'github.com/wiggitywhitney/commit-story-v2',
 });
 
 const traceExporter = new OTLPTraceExporter({

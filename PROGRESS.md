@@ -21,6 +21,8 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 - (2026-03-21) Added spiny-orb.yaml config and semconv/ telemetry schema for spiny-orb agent compatibility (PRD #51, milestone 8)
 
 ### Fixed
+- (2026-06-19) Fixed `git.repository.id` in `examples/instrumentation.js`: Datadog was showing the stale repository association `mcp-commit-story` instead of `commit-story-v2` because the Datadog Exporter auto-detects git metadata and Datadog's backend caches a service's repository URL from first registration. Explicitly setting `git.repository.id: github.com/wiggitywhitney/commit-story-v2` in the OTel resource attributes overrides whatever is auto-detected.
+
 - (2026-06-19) Fixed acceptance gate glob in `.claude/verify.json`: `tests/**/acceptance-gate.test.js` was not being expanded by bash when the pre-PR hook ran it via `bash -c` (bash requires `shopt -s globstar` for `**` to be recursive; without it, `**` matches only one path component, and the file at `tests/acceptance-gate.test.js` — zero levels deep — was not found). Replaced with the explicit path `tests/acceptance-gate.test.js`.
 
 - (2026-06-19) Added `docs/pino-otel-log-trace-correlation.md`: reference guide for the spinybacked-orbweaver team documenting the full pino + OTel SDK integration stack, the IITM ESM hook Node v22+ requirement, the log pipeline path from pino through otelcol-contrib to Datadog, and the traceloop gating finding where IS scoring does not activate `@traceloop/instrumentation-langchain` or `@traceloop/instrumentation-mcp` because `COMMIT_STORY_TRACELOOP=true` is not set during scoring runs.
