@@ -51,7 +51,7 @@ Also add `import-in-the-middle@^3.0.0` as an explicit devDependency in `package.
 
 ## The Log Pipeline
 
-```
+```text
 pino (logger.info('message'))
   → PinoInstrumentation patches pino factory
   → LogRecord created with active span's traceId + spanId injected
