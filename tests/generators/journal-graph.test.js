@@ -1,11 +1,5 @@
-/**
- * Tests for journal-graph.js — AI generation pipeline
- *
- * Strategy:
- * - Unit test all deterministic helpers directly (no mocks needed)
- * - Contract test the LLM boundary by mocking ChatAnthropic
- * - Test graph structure and end-to-end orchestration with mocks
- */
+// ABOUTME: Tests for journal-graph.js — AI generation pipeline
+// ABOUTME: Contract tests mock ChatAnthropic; unit tests cover deterministic helpers
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -18,6 +12,11 @@ vi.mock('@langchain/anthropic', () => ({
       return mockInvoke(...args);
     }
   },
+}));
+
+// Mock logger to assert info calls at span sites.
+vi.mock('../../src/logger.js', () => ({
+  default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
 import {
@@ -44,6 +43,7 @@ import {
   resetModel,
   generateJournalSections,
 } from '../../src/generators/journal-graph.js';
+import logger from '../../src/logger.js';
 
 // ---------------------------------------------------------------------------
 // Helper factories
@@ -947,5 +947,125 @@ describe('generateJournalSections', () => {
     // All three nodes should report errors
     expect(result.errors.length).toBeGreaterThanOrEqual(1);
     expect(result.errors.some((e) => e.includes('failed'))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Logger call assertions (issue #83)
+// Priority: these functions are future span sites; logger.info calls inside
+// them get trace_id/span_id injected once spiny-orb wraps them in spans.
+// ---------------------------------------------------------------------------
+
+describe('summaryNode logger calls', () => {
+  beforeEach(() => {
+    mockInvoke.mockReset();
+    resetModel();
+    vi.mocked(logger.info).mockReset();
+  });
+
+  it('calls logger.info at start with meaningful content (not empty or bare function name)', async () => {
+    mockInvoke.mockResolvedValue({ content: 'Generated summary text.' });
+    const context = _makeContext();
+
+    await summaryNode({ context });
+
+    expect(vi.mocked(logger.info)).toHaveBeenCalled();
+    const firstCall = vi.mocked(logger.info).mock.calls[0];
+    const message = firstCall.find(arg => typeof arg === 'string');
+    expect(message).toBeTruthy();
+    expect(message).not.toBe('summaryNode');
+    expect(message.length).toBeGreaterThan(5);
+  });
+});
+
+describe('technicalNode logger calls', () => {
+  beforeEach(() => {
+    mockInvoke.mockReset();
+    resetModel();
+    vi.mocked(logger.info).mockReset();
+  });
+
+  it('calls logger.info when making LLM call (substantial messages present)', async () => {
+    mockInvoke.mockResolvedValue({ content: '- **DECISION: Use X** (Implemented)' });
+    const context = _makeContext({ substantialUserMessages: 5 });
+
+    await technicalNode({ context });
+
+    expect(vi.mocked(logger.info)).toHaveBeenCalled();
+    const firstCall = vi.mocked(logger.info).mock.calls[0];
+    const message = firstCall.find(arg => typeof arg === 'string');
+    expect(message).toBeTruthy();
+    expect(message).not.toBe('technicalNode');
+    expect(message.length).toBeGreaterThan(5);
+  });
+
+  it('calls logger.info on early exit path (no substantial messages)', async () => {
+    const context = _makeContext({ substantialUserMessages: 0 });
+
+    await technicalNode({ context });
+
+    expect(vi.mocked(logger.info)).toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
+    const firstCall = vi.mocked(logger.info).mock.calls[0];
+    const message = firstCall.find(arg => typeof arg === 'string');
+    expect(message).toBeTruthy();
+    expect(message.length).toBeGreaterThan(5);
+  });
+});
+
+describe('dialogueNode logger calls', () => {
+  beforeEach(() => {
+    mockInvoke.mockReset();
+    resetModel();
+    vi.mocked(logger.info).mockReset();
+  });
+
+  it('calls logger.info when making LLM call (substantial messages present)', async () => {
+    mockInvoke.mockResolvedValue({ content: '> **Human:** "How?"' });
+    const context = _makeContext({ substantialUserMessages: 5 });
+
+    await dialogueNode({ context, summary: 'Test summary' });
+
+    expect(vi.mocked(logger.info)).toHaveBeenCalled();
+    const firstCall = vi.mocked(logger.info).mock.calls[0];
+    const message = firstCall.find(arg => typeof arg === 'string');
+    expect(message).toBeTruthy();
+    expect(message).not.toBe('dialogueNode');
+    expect(message.length).toBeGreaterThan(5);
+  });
+
+  it('calls logger.info on early exit path (no substantial messages)', async () => {
+    const context = _makeContext({ substantialUserMessages: 0 });
+
+    await dialogueNode({ context, summary: 'Test summary' });
+
+    expect(vi.mocked(logger.info)).toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
+    const firstCall = vi.mocked(logger.info).mock.calls[0];
+    const message = firstCall.find(arg => typeof arg === 'string');
+    expect(message).toBeTruthy();
+    expect(message.length).toBeGreaterThan(5);
+  });
+});
+
+describe('generateJournalSections logger calls', () => {
+  beforeEach(() => {
+    mockInvoke.mockReset();
+    resetModel();
+    vi.mocked(logger.info).mockReset();
+  });
+
+  it('calls logger.info at start with context info', async () => {
+    mockInvoke.mockResolvedValue({ content: 'Generated content.' });
+    const context = _makeContext();
+
+    await generateJournalSections(context);
+
+    expect(vi.mocked(logger.info)).toHaveBeenCalled();
+    const firstCall = vi.mocked(logger.info).mock.calls[0];
+    const message = firstCall.find(arg => typeof arg === 'string');
+    expect(message).toBeTruthy();
+    expect(message).not.toBe('generateJournalSections');
+    expect(message.length).toBeGreaterThan(5);
   });
 });

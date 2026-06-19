@@ -1,3 +1,4 @@
+// ABOUTME: Vitest configuration — test file discovery and coverage settings
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -9,7 +10,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.js'],
-      exclude: ['src/index.js'],
+      exclude: [],
     },
   },
 });

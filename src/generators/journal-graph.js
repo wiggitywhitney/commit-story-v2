@@ -1,14 +1,5 @@
-/**
- * Journal Graph - LangGraph StateGraph for journal generation
- *
- * Orchestrates AI generation of journal sections:
- * - Summary: Narrative overview of the commit
- * - Dialogue: Key quotes from human/assistant conversation
- * - Technical Decisions: Architecture and implementation decisions
- *
- * Graph structure:
- * START → [summary, technical] (parallel) → dialogue → END
- */
+// ABOUTME: LangGraph StateGraph for per-commit journal entry generation
+// ABOUTME: Orchestrates parallel Summary/Technical nodes then Dialogue, producing narrative + decisions + quotes
 
 import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
 import { ChatAnthropic } from '@langchain/anthropic';
@@ -17,6 +8,7 @@ import { getAllGuidelines } from './prompts/guidelines/index.js';
 import { summaryPrompt } from './prompts/sections/summary-prompt.js';
 import { dialoguePrompt } from './prompts/sections/dialogue-prompt.js';
 import { technicalDecisionsPrompt } from './prompts/sections/technical-decisions-prompt.js';
+import logger from '../logger.js';
 
 /**
  * Journal state definition using LangGraph Annotation API
@@ -440,6 +432,7 @@ async function summaryNode(state) {
     const hasFunctional = hasFunctionalCode(context.commit.diff);
     // Use pre-computed stats from message filter instead of re-iterating
     const hasChat = (context.metadata?.filterStats?.substantialUserMessages ?? 0) >= 2;
+    logger.info({ hasFunctional, hasChat }, 'Generating journal summary');
     const sectionPrompt = summaryPrompt(hasFunctional, hasChat);
 
     const systemContent = `${guidelines}
@@ -475,8 +468,11 @@ async function technicalNode(state) {
     // Early exit: skip AI call when no substantial user messages (v1 pattern)
     const substantialUserMessages = context.metadata?.filterStats?.substantialUserMessages ?? 0;
     if (substantialUserMessages === 0) {
+      logger.info({ substantialUserMessages }, 'Skipping technical decisions: no substantial user messages');
       return { technicalDecisions: 'No significant technical decisions documented for this development session' };
     }
+
+    logger.info({ substantialUserMessages }, 'Generating technical decisions');
 
     const guidelines = getAllGuidelines();
 
@@ -519,6 +515,7 @@ async function dialogueNode(state) {
     // Early exit: skip AI call when no substantial user messages (v1 pattern)
     const substantialUserMessages = context.metadata?.filterStats?.substantialUserMessages ?? 0;
     if (substantialUserMessages === 0) {
+      logger.info({ substantialUserMessages }, 'Skipping dialogue: no substantial user messages');
       return { dialogue: 'No significant dialogue found for this development session' };
     }
 
@@ -526,6 +523,7 @@ async function dialogueNode(state) {
 
     // Dynamic maxQuotes: 8% of substantial user messages + 1 (v1 formula)
     const maxQuotes = Math.min(Math.ceil(substantialUserMessages * 0.08) + 1, 15);
+    logger.info({ substantialUserMessages, maxQuotes }, 'Generating dialogue');
 
     // Replace {maxQuotes} placeholder in prompt
     const sectionPrompt = dialoguePrompt.replace(/{maxQuotes}/g, String(maxQuotes));
@@ -595,6 +593,7 @@ function getGraph() {
  * @returns {Promise<JournalSections>} Generated journal sections
  */
 export async function generateJournalSections(context) {
+  logger.info({ commitHash: context?.commit?.shortHash }, 'Generating journal sections');
   const graph = getGraph();
 
   const result = await graph.invoke({ context });

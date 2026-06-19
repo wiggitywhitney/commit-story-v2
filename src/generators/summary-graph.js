@@ -7,6 +7,7 @@ import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 import { dailySummaryPrompt } from './prompts/sections/daily-summary-prompt.js';
 import { weeklySummaryPrompt } from './prompts/sections/weekly-summary-prompt.js';
 import { monthlySummaryPrompt } from './prompts/sections/monthly-summary-prompt.js';
+import logger from '../logger.js';
 
 /**
  * Summary state definition using LangGraph Annotation API.
@@ -169,8 +170,11 @@ export function cleanDailySummaryOutput(raw) {
 export async function dailySummaryNode(state) {
   const { entries, date } = state;
 
+  logger.info({ date, entryCount: entries?.length ?? 0 }, 'Generating daily summary');
+
   // Early exit: no entries to summarize
   if (!entries || entries.length === 0) {
+    logger.info({ date }, 'Skipping daily summary: no journal entries found');
     return {
       narrative: 'No journal entries found for this date.',
       keyDecisions: '',
@@ -190,6 +194,8 @@ export async function dailySummaryNode(state) {
 
     const cleaned = cleanDailySummaryOutput(result.content);
     const sections = parseSummarySections(cleaned);
+
+    logger.info({ date, hasSections: !!(sections.narrative || sections.keyDecisions || sections.openThreads) }, 'Daily summary generated');
 
     return {
       narrative: sections.narrative,
@@ -236,6 +242,7 @@ function getGraph() {
  * @returns {Promise<{ narrative: string, keyDecisions: string, openThreads: string, errors: string[], generatedAt: Date }>}
  */
 export async function generateDailySummary(entries, date) {
+  logger.info({ date, entryCount: entries?.length ?? 0 }, 'Starting daily summary generation');
   const graph = getGraph();
   const result = await graph.invoke({ entries, date });
 
