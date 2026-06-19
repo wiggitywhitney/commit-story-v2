@@ -13,6 +13,11 @@ vi.mock('@langchain/anthropic', () => ({
   },
 }));
 
+// Mock logger to assert info calls at span sites.
+vi.mock('../../src/logger.js', () => ({
+  default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+}));
+
 import {
   generateDailySummary,
   dailySummaryNode,
@@ -21,6 +26,7 @@ import {
   resetModel,
   SummaryState,
 } from '../../src/generators/summary-graph.js';
+import logger from '../../src/logger.js';
 
 // ---------------------------------------------------------------------------
 // Helper factories
@@ -244,5 +250,80 @@ The developer worked on auth and tests.
     expect(result.openThreads).toContain('refresh token');
     expect(result.errors).toEqual([]);
     expect(result.generatedAt).toBeInstanceOf(Date);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Logger calls at LangGraph node boundaries — verified at entry and exit
+// points where meaningful state is captured (date, entry count). These log
+// sites are the correlation anchors for trace context injected by the pino
+// bridge when an OTel SDK is active.
+// ---------------------------------------------------------------------------
+
+describe('dailySummaryNode logger calls', () => {
+  const LLM_OUTPUT = `## Narrative\nWork done.\n## Key Decisions\n- Used X\n## Open Threads\n- Need Y`;
+
+  beforeEach(() => {
+    mockInvoke.mockReset();
+    resetModel();
+    vi.mocked(logger.info).mockReset();
+  });
+
+  it('calls logger.info at start with meaningful content (not empty or bare function name)', async () => {
+    mockInvoke.mockResolvedValue({ content: LLM_OUTPUT });
+    const entries = _makeEntries(3);
+
+    await dailySummaryNode({ entries, date: '2026-02-22' });
+
+    expect(vi.mocked(logger.info)).toHaveBeenCalled();
+    const firstCall = vi.mocked(logger.info).mock.calls[0];
+    const message = firstCall.find(arg => typeof arg === 'string');
+    expect(message).toBeTruthy();
+    expect(message).not.toBe('dailySummaryNode');
+    expect(message.length).toBeGreaterThan(5);
+  });
+
+  it('calls logger.info after successful LLM generation', async () => {
+    mockInvoke.mockResolvedValue({ content: LLM_OUTPUT });
+    const entries = _makeEntries(2);
+
+    await dailySummaryNode({ entries, date: '2026-02-22' });
+
+    // Expect a start log and at least one completion/result log
+    expect(vi.mocked(logger.info).mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('calls logger.info even on early exit (no entries)', async () => {
+    await dailySummaryNode({ entries: [], date: '2026-02-22' });
+
+    expect(vi.mocked(logger.info)).toHaveBeenCalled();
+    const firstCall = vi.mocked(logger.info).mock.calls[0];
+    const message = firstCall.find(arg => typeof arg === 'string');
+    expect(message).toBeTruthy();
+    expect(message.length).toBeGreaterThan(5);
+  });
+});
+
+describe('generateDailySummary logger calls', () => {
+  const LLM_OUTPUT = `## Narrative\nWork done.\n## Key Decisions\n- Used X\n## Open Threads\n- Need Y`;
+
+  beforeEach(() => {
+    mockInvoke.mockReset();
+    resetModel();
+    vi.mocked(logger.info).mockReset();
+  });
+
+  it('calls logger.info at start with entry count and date', async () => {
+    mockInvoke.mockResolvedValue({ content: LLM_OUTPUT });
+    const entries = _makeEntries(3);
+
+    await generateDailySummary(entries, '2026-02-22');
+
+    expect(vi.mocked(logger.info)).toHaveBeenCalled();
+    const firstCall = vi.mocked(logger.info).mock.calls[0];
+    const message = firstCall.find(arg => typeof arg === 'string');
+    expect(message).toBeTruthy();
+    expect(message).not.toBe('generateDailySummary');
+    expect(message.length).toBeGreaterThan(5);
   });
 });

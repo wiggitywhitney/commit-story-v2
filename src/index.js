@@ -21,6 +21,8 @@ import './utils/config.js'; // Load environment variables first
 import './traceloop-init.js'; // Register traceloop auto-instrumentation (if enabled)
 import { config } from './utils/config.js';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { realpathSync } from 'node:fs';
 import { gatherContextForCommit } from './integrators/context-integrator.js';
 import { generateJournalSections } from './generators/journal-graph.js';
 import { saveJournalEntry, discoverReflections } from './managers/journal-manager.js';
@@ -192,23 +194,24 @@ function getPreviousCommitTime(commitRef) {
 /**
  * Handle the "summarize" subcommand.
  * @param {string[]} args - Arguments after "summarize"
+ * @returns {Promise<number>} Exit code
  */
-async function handleSummarize(args) {
+export async function handleSummarize(args) {
   const parsed = parseSummarizeArgs(args);
 
   if (parsed.help) {
     showSummarizeHelp();
-    process.exit(EXIT_SUCCESS);
+    return EXIT_SUCCESS;
   }
 
   if (parsed.error) {
     logger.error(parsed.error);
-    process.exit(EXIT_ERROR);
+    return EXIT_ERROR;
   }
 
   // Validate environment (need API key for generation)
   if (!validateEnvironment()) {
-    process.exit(EXIT_ERROR);
+    return EXIT_ERROR;
   }
 
   // Weekly mode
@@ -248,8 +251,7 @@ async function handleSummarize(args) {
       }
     }
 
-    process.exit(result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS);
-    return;
+    return result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS;
   }
 
   // Monthly mode
@@ -289,8 +291,7 @@ async function handleSummarize(args) {
       }
     }
 
-    process.exit(result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS);
-    return;
+    return result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS;
   }
 
   // Daily mode
@@ -329,13 +330,14 @@ async function handleSummarize(args) {
     }
   }
 
-  process.exit(result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS);
+  return result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS;
 }
 
 /**
  * Main entry point
+ * @returns {Promise<number>} Exit code
  */
-async function main() {
+export async function main() {
   const { subcommand, commitRef, help, subcommandArgs } = parseArgs();
 
   if (DEBUG) {
@@ -345,13 +347,12 @@ async function main() {
   // Show help if requested
   if (help) {
     showHelp();
-    process.exit(EXIT_SUCCESS);
+    return EXIT_SUCCESS;
   }
 
   // Route to subcommand handlers
   if (subcommand === 'summarize') {
-    await handleSummarize(subcommandArgs);
-    return;
+    return await handleSummarize(subcommandArgs);
   }
 
   logger.debug('Starting commit-story');
@@ -360,18 +361,18 @@ async function main() {
   // Validate git repository
   if (!isGitRepository()) {
     logger.error('Not a git repository — run commit-story from within a git repository');
-    process.exit(EXIT_ERROR);
+    return EXIT_ERROR;
   }
 
   // Validate commit reference
   if (!isValidCommitRef(commitRef)) {
     logger.error({ commitRef }, 'Invalid commit reference — check that the commit exists: git log --oneline');
-    process.exit(EXIT_ERROR);
+    return EXIT_ERROR;
   }
 
   // Validate environment
   if (!validateEnvironment()) {
-    process.exit(EXIT_ERROR);
+    return EXIT_ERROR;
   }
 
   // Check skip conditions BEFORE expensive context collection
@@ -380,7 +381,7 @@ async function main() {
   // Skip journal-entries-only commits
   if (isJournalEntriesOnlyCommit(commitRef)) {
     logger.info('Skipping: only journal entries changed');
-    process.exit(EXIT_SKIPPED);
+    return EXIT_SKIPPED;
   }
 
   // Check for merge commits
@@ -402,7 +403,7 @@ async function main() {
 
     if (!hasChat && !hasDiff) {
       logger.info('Skipping: merge commit with no changes');
-      process.exit(EXIT_SKIPPED);
+      return EXIT_SKIPPED;
     }
     logger.debug({ hasChat, hasDiff }, 'Processing merge commit');
   }
@@ -468,11 +469,15 @@ async function main() {
     }
   }
 
-  process.exit(EXIT_SUCCESS);
+  return EXIT_SUCCESS;
 }
 
-// Run main function
-main().catch((error) => {
-  logger.error(error, 'Unexpected error');
-  process.exit(EXIT_ERROR);
-});
+// Run when executed directly (not when imported by tests)
+if (realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().then((exitCode) => {
+    process.exit(exitCode ?? EXIT_SUCCESS);
+  }).catch((error) => {
+    logger.error(error, 'Unexpected error');
+    process.exit(EXIT_ERROR);
+  });
+}

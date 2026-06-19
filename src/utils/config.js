@@ -13,6 +13,6 @@ export const config = Object.freeze({
   anthropicApiKey,
   model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
   journalDir: process.env.JOURNAL_DIR || './journal',
-  autoSummarize: process.env.COMMIT_STORY_AUTO_SUMMARIZE !== 'false',
+  autoSummarize: process.env.COMMIT_STORY_AUTO_SUMMARIZE?.trim().toLowerCase() !== 'false',
   timezone: process.env.COMMIT_STORY_TIMEZONE || null,
 });
