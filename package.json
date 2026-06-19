@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@opentelemetry/api-logs": "^0.213.0",
-    "import-in-the-middle": "^3.0.0",
+    "import-in-the-middle": "3.0.0",
     "@opentelemetry/exporter-logs-otlp-http": "^0.213.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.213.0",
     "@opentelemetry/resources": "^2.6.0",
