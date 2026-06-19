@@ -22,6 +22,7 @@ import './traceloop-init.js'; // Register traceloop auto-instrumentation (if ena
 import { config } from './utils/config.js';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { realpathSync } from 'node:fs';
 import { gatherContextForCommit } from './integrators/context-integrator.js';
 import { generateJournalSections } from './generators/journal-graph.js';
 import { saveJournalEntry, discoverReflections } from './managers/journal-manager.js';
@@ -472,7 +473,7 @@ export async function main() {
 }
 
 // Run when executed directly (not when imported by tests)
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().then((exitCode) => {
     process.exit(exitCode ?? EXIT_SUCCESS);
   }).catch((error) => {

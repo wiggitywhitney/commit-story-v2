@@ -368,6 +368,7 @@ export async function weeklySummaryNode(state) {
 
   // Early exit: no daily summaries to consolidate
   if (!dailySummaries || dailySummaries.length === 0) {
+    logger.info({ weekLabel }, 'Skipping weekly summary: no daily summaries found');
     return {
       weekInReview: 'No daily summaries found for this week.',
       highlights: '',
@@ -376,6 +377,7 @@ export async function weeklySummaryNode(state) {
     };
   }
 
+  logger.info({ weekLabel, dailySummaryCount: dailySummaries.length }, 'Generating weekly summary');
   try {
     const prompt = weeklySummaryPrompt(dailySummaries.length);
     const formattedSummaries = formatDailySummariesForWeekly(dailySummaries);
@@ -560,6 +562,7 @@ export async function monthlySummaryNode(state) {
 
   // Early exit: no weekly summaries to consolidate
   if (!weeklySummaries || weeklySummaries.length === 0) {
+    logger.info({ monthLabel }, 'Skipping monthly summary: no weekly summaries found');
     return {
       monthInReview: 'No weekly summaries found for this month.',
       accomplishments: '',
@@ -569,6 +572,7 @@ export async function monthlySummaryNode(state) {
     };
   }
 
+  logger.info({ monthLabel, weeklySummaryCount: weeklySummaries.length }, 'Generating monthly summary');
   try {
     const prompt = monthlySummaryPrompt(weeklySummaries.length);
     const formattedSummaries = formatWeeklySummariesForMonthly(weeklySummaries);

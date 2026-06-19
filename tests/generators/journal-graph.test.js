@@ -951,9 +951,10 @@ describe('generateJournalSections', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Logger call assertions (issue #83)
-// Priority: these functions are future span sites; logger.info calls inside
-// them get trace_id/span_id injected once spiny-orb wraps them in spans.
+// Logger calls at LangGraph node boundaries — verified at entry and exit
+// points where meaningful state is captured (date, entry count, user message
+// counts). These log sites are the correlation anchors for trace context
+// injected by the pino bridge when an OTel SDK is active.
 // ---------------------------------------------------------------------------
 
 describe('summaryNode logger calls', () => {

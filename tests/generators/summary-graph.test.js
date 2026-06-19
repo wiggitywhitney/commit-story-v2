@@ -254,9 +254,10 @@ The developer worked on auth and tests.
 });
 
 // ---------------------------------------------------------------------------
-// Logger call assertions (issue #83)
-// Priority: dailySummaryNode and generateDailySummary are future span sites;
-// logs inside them get trace_id/span_id injected once spiny-orb wraps them.
+// Logger calls at LangGraph node boundaries — verified at entry and exit
+// points where meaningful state is captured (date, entry count). These log
+// sites are the correlation anchors for trace context injected by the pino
+// bridge when an OTel SDK is active.
 // ---------------------------------------------------------------------------
 
 describe('dailySummaryNode logger calls', () => {

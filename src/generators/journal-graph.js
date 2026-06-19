@@ -1,5 +1,6 @@
 // ABOUTME: LangGraph StateGraph for per-commit journal entry generation
 // ABOUTME: Orchestrates parallel Summary/Technical nodes then Dialogue, producing narrative + decisions + quotes
+// Graph structure: START → [summary, technical] (parallel) → dialogue → END
 
 import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
 import { ChatAnthropic } from '@langchain/anthropic';
