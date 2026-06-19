@@ -1,5 +1,5 @@
 {
   "commands": {
-    "acceptance_test": "env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL vals exec -i -f .vals.yaml -- npx vitest run --reporter=verbose tests/**/acceptance-gate.test.js"
+    "acceptance_test": "env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL vals exec -i -f .vals.yaml -- npx vitest run --reporter=verbose tests/acceptance-gate.test.js"
   }
 }
