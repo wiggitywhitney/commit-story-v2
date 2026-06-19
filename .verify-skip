@@ -1,1 +1,2 @@
 scripts/setup-dd-agent.sh
+.env.example
