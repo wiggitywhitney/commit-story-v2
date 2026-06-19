@@ -342,9 +342,8 @@ function cleanDialogueOutput(raw) {
       cleaned.push('');
       inQuoteBlock = false;
     } else if (inQuoteBlock) {
-      // Continuation of a blockquote that doesn't start with >
-      // (shouldn't happen with our format, skip it)
-      inQuoteBlock = false;
+      // Continuation line within a quote block (e.g., second line of a multi-line assistant response)
+      cleaned.push(line);
     }
     // Skip all other lines (preamble, commentary)
   }

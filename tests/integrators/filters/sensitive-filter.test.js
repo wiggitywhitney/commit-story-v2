@@ -1,3 +1,5 @@
+// ABOUTME: Tests for sensitive-filter.js — redaction of API keys, tokens, and secrets
+// ABOUTME: Verifies that diff headers are not redacted and code hunks are
 import { describe, it, expect } from 'vitest';
 import {
   redactSensitiveData,
@@ -206,10 +208,59 @@ describe('redactSensitiveData', () => {
 });
 
 describe('redactDiff', () => {
-  it('delegates to redactSensitiveData', () => {
+  it('redacts secrets in code hunks', () => {
     const diff = '+api_key: AKIAIOSFODNN7EXAMPLE';
     const result = redactDiff(diff);
 
+    expect(result.text).not.toContain('AKIAIOSFODNN7EXAMPLE');
+    expect(result.redactionCount).toBeGreaterThan(0);
+  });
+
+  it('does not redact filenames in diff --git header lines', () => {
+    const diff = 'diff --git a/src/token-filter.test.js b/src/token-filter.test.js';
+    const result = redactDiff(diff);
+
+    expect(result.text).toContain('token-filter.test.js');
+    expect(result.text).not.toContain('[REDACTED]');
+  });
+
+  it('does not redact filenames in --- header lines', () => {
+    const diff = '--- a/src/token-filter.test.js';
+    const result = redactDiff(diff);
+
+    expect(result.text).toContain('token-filter.test.js');
+    expect(result.text).not.toContain('[REDACTED]');
+  });
+
+  it('does not redact filenames in +++ header lines', () => {
+    const diff = '+++ b/src/secret-manager.js';
+    const result = redactDiff(diff);
+
+    expect(result.text).toContain('secret-manager.js');
+    expect(result.text).not.toContain('[REDACTED]');
+  });
+
+  it('does not redact filenames in index header lines', () => {
+    const diff = 'index abc1234..def5678 100644';
+    const result = redactDiff(diff);
+
+    expect(result.text).toContain('abc1234');
+    expect(result.text).not.toContain('[REDACTED]');
+  });
+
+  it('redacts secrets in code hunks but preserves diff headers in the same diff', () => {
+    const diff = [
+      'diff --git a/src/token-filter.test.js b/src/token-filter.test.js',
+      'index abc1234..def5678 100644',
+      '--- a/src/token-filter.test.js',
+      '+++ b/src/token-filter.test.js',
+      '@@ -1,3 +1,3 @@',
+      '-const token = "old_value_here_1234"',
+      '+const secret = "AKIAIOSFODNN7EXAMPLE"',
+    ].join('\n');
+    const result = redactDiff(diff);
+
+    expect(result.text).toContain('token-filter.test.js');
     expect(result.text).not.toContain('AKIAIOSFODNN7EXAMPLE');
     expect(result.redactionCount).toBeGreaterThan(0);
   });

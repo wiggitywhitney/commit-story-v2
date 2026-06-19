@@ -29,8 +29,9 @@ export async function readDayEntries(date, basePath = '.') {
   let content;
   try {
     content = await readFile(entryPath, 'utf-8');
-  } catch {
-    return [];
+  } catch (err) {
+    if (err.code === 'ENOENT') return [];
+    throw err;
   }
 
   if (!content || !content.trim()) {
@@ -210,8 +211,9 @@ export async function readWeekDailySummaries(weekStr, basePath = '.') {
       if (content && content.trim()) {
         summaries.push({ date: dateStr, content: content.trim() });
       }
-    } catch {
-      // No daily summary for this day — skip
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
+      // ENOENT: no daily summary for this day — skip
     }
 
     current.setDate(current.getDate() + 1);
@@ -355,8 +357,8 @@ export function getMonthBoundaries(monthStr) {
 }
 
 /**
- * Read all weekly summaries that overlap with a given month.
- * A week overlaps if any day of the week (Monday-Sunday) falls within the month.
+ * Read all weekly summaries that belong to a given month.
+ * A week belongs to the month that contains its Monday.
  * @param {string} monthStr - Month string like "2026-02"
  * @param {string} basePath - Base path for journal (default: current directory)
  * @returns {Promise<Array<{ weekLabel: string, content: string }>>} Weekly summaries sorted by week
@@ -368,8 +370,9 @@ export async function readMonthWeeklySummaries(monthStr, basePath = '.') {
   let files;
   try {
     files = await readdir(weeklyDir);
-  } catch {
-    return [];
+  } catch (err) {
+    if (err.code === 'ENOENT') return [];
+    throw err;
   }
 
   const weekPattern = /^(\d{4}-W\d{2})\.md$/;
@@ -383,17 +386,18 @@ export async function readMonthWeeklySummaries(monthStr, basePath = '.') {
 
     // Check if this week overlaps with the month
     // Import getWeekBoundaries locally to avoid circular dependency concerns
-    const { monday, sunday } = getWeekBoundaries(weekLabel);
+    const { monday } = getWeekBoundaries(weekLabel);
 
-    // Week overlaps with month if week's Sunday >= month's first day AND week's Monday <= month's last day
-    if (sunday >= firstDay && monday <= lastDay) {
+    // A week belongs to the month that contains its Monday (matches summary-detector.js)
+    if (monday >= firstDay && monday <= lastDay) {
       try {
         const content = await readFile(join(weeklyDir, file), 'utf-8');
         if (content && content.trim()) {
           summaries.push({ weekLabel, content: content.trim() });
         }
-      } catch {
-        // Skip unreadable files
+      } catch (err) {
+        if (err.code !== 'ENOENT') throw err;
+        // ENOENT: skip this file
       }
     }
   }

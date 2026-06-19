@@ -1,3 +1,6 @@
+// ABOUTME: Sensitive data filter — redacts API keys, tokens, and secrets from text and diffs
+// ABOUTME: Skips diff header lines to avoid redacting filenames that happen to match secret patterns
+
 /**
  * Sensitive Data Filter - Redacts API keys, tokens, and secrets
  *
@@ -144,6 +147,9 @@ export function redactSensitiveData(text, options = {}) {
   };
 }
 
+// Diff header lines contain file paths, not secret values — skip redaction on these lines
+const DIFF_HEADER_RE = /^(diff --git |index |--- |[+]{3} |new file mode|deleted file mode|Binary files)/;
+
 /**
  * Redact sensitive data from a commit diff
  * @param {string} diff - Git diff content
@@ -151,7 +157,21 @@ export function redactSensitiveData(text, options = {}) {
  * @returns {object} Redacted diff and stats
  */
 export function redactDiff(diff, options = {}) {
-  return redactSensitiveData(diff, options);
+  if (!diff) return { text: '', redactions: [], redactionCount: 0 };
+
+  let totalRedactionCount = 0;
+  const processedLines = diff.split('\n').map((line) => {
+    if (DIFF_HEADER_RE.test(line)) return line;
+    const result = redactSensitiveData(line, options);
+    totalRedactionCount += result.redactionCount;
+    return result.text;
+  });
+
+  return {
+    text: processedLines.join('\n'),
+    redactions: [],
+    redactionCount: totalRedactionCount,
+  };
 }
 
 /**

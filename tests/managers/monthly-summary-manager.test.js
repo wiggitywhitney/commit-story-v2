@@ -122,13 +122,43 @@ describe('readMonthWeeklySummaries', () => {
     expect(summaries).toEqual([]);
   });
 
-  it('includes boundary weeks that overlap with the month', async () => {
-    // W05 starts Jan 26 but ends Feb 1 — should be included for February
+  it('assigns a week to the month containing its Monday, not its Sunday', async () => {
+    // W05 2026: Mon Jan 26 - Sun Feb 1. Monday is in January → belongs to January, NOT February.
     await _writeWeeklySummary(tmpDir, '2026-W05', _makeWeeklySummaryContent('2026-W05'));
 
-    const summaries = await readMonthWeeklySummaries('2026-02', tmpDir);
+    const februarySummaries = await readMonthWeeklySummaries('2026-02', tmpDir);
 
-    expect(summaries.some(s => s.weekLabel === '2026-W05')).toBe(true);
+    expect(februarySummaries.some(s => s.weekLabel === '2026-W05')).toBe(false);
+  });
+
+  it('does not include a week in two months when it spans a month boundary', async () => {
+    // W09 2026: Mon Feb 23 - Sun Mar 1. Monday is in February → belongs to February only.
+    await _writeWeeklySummary(tmpDir, '2026-W09', _makeWeeklySummaryContent('2026-W09'));
+
+    const februarySummaries = await readMonthWeeklySummaries('2026-02', tmpDir);
+    const marchSummaries = await readMonthWeeklySummaries('2026-03', tmpDir);
+
+    expect(februarySummaries.some(s => s.weekLabel === '2026-W09')).toBe(true);
+    expect(marchSummaries.some(s => s.weekLabel === '2026-W09')).toBe(false);
+  });
+
+  it('rethrows non-ENOENT errors when reading the weekly directory', async () => {
+    // Create a file where the weekly directory should be — readdir on a file throws ENOTDIR, not ENOENT
+    const summariesDir = join(tmpDir, 'journal', 'summaries');
+    await mkdir(summariesDir, { recursive: true });
+    await writeFile(join(summariesDir, 'weekly'), 'not a directory');
+
+    await expect(readMonthWeeklySummaries('2026-02', tmpDir)).rejects.toThrow();
+  });
+
+  it('rethrows non-ENOENT errors from individual weekly file reads', async () => {
+    // Create a weekly summary path as a directory — readFile on a directory throws EISDIR, not ENOENT
+    const weeklyDir = join(tmpDir, 'journal', 'summaries', 'weekly');
+    await mkdir(weeklyDir, { recursive: true });
+    // W09's Monday is Feb 23, so it's in range for February 2026
+    await mkdir(join(weeklyDir, '2026-W09.md'));
+
+    await expect(readMonthWeeklySummaries('2026-02', tmpDir)).rejects.toThrow();
   });
 });
 
