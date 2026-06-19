@@ -126,3 +126,8 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.journal.generate_monthly_summary"
     span_kind: internal
+  - id: span.commit_story.context.save_context
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.context.save_context"
+    span_kind: internal
