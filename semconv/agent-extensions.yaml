@@ -64,6 +64,10 @@ groups:
         type: int
         stability: development
         brief: "Agent-discovered attribute: commit_story.journal.failed_count"
+      - id: commit_story.cli.subcommand
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.cli.subcommand"
   - id: span.commit_story.context.collect_messages
     type: span
     stability: development
@@ -292,4 +296,14 @@ groups:
     stability: development
     brief: "Agent-discovered span:
       commit_story.journal.trigger_auto_monthly_summaries"
+    span_kind: internal
+  - id: span.commit_story.journal.handle_summarize
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.handle_summarize"
+    span_kind: internal
+  - id: span.commit_story.cli.main
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.cli.main"
     span_kind: internal
