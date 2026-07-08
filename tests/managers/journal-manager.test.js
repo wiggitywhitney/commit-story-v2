@@ -268,6 +268,49 @@ describe('saveJournalEntry', () => {
     expect(content).toContain('Commit: orignal');
     expect(content).not.toContain('Commit: cherryp');
   });
+
+  it('regenerates entry when existing exact-hash match is a failure placeholder', async () => {
+    const staleSections = _makeSections({ summary: '[Summary generation failed]' });
+    const commit = _makeCommit({ shortHash: 'abc123d' });
+    await saveJournalEntry(staleSections, commit, [], tmpDir);
+
+    const freshSections = _makeSections({ summary: 'Real generated summary content.' });
+    await saveJournalEntry(freshSections, commit, [], tmpDir);
+
+    const entryPath = join(tmpDir, 'journal/entries/2026-02/2026-02-21.md');
+    const content = readFileSync(entryPath, 'utf-8');
+
+    const matches = content.match(/Commit: abc123d/g);
+    expect(matches).toHaveLength(1);
+    expect(content).toContain('Real generated summary content.');
+    expect(content).not.toContain('[Summary generation failed]');
+  });
+
+  it('regenerates entry when existing semantic match is a failure placeholder', async () => {
+    const staleSections = _makeSections({ summary: '[Summary generation failed]' });
+    const commit1 = _makeCommit({
+      shortHash: 'orignal',
+      message: 'feat: add feature',
+      timestamp: new Date('2026-02-21T10:15:32Z'),
+    });
+    await saveJournalEntry(staleSections, commit1, [], tmpDir);
+
+    const freshSections = _makeSections({ summary: 'Real generated summary content.' });
+    const commit2 = _makeCommit({
+      shortHash: 'cherryp',
+      message: 'feat: add feature',
+      timestamp: new Date('2026-02-21T10:15:32Z'),
+    });
+    await saveJournalEntry(freshSections, commit2, [], tmpDir);
+
+    const entryPath = join(tmpDir, 'journal/entries/2026-02/2026-02-21.md');
+    const content = readFileSync(entryPath, 'utf-8');
+
+    expect(content).toContain('Real generated summary content.');
+    expect(content).not.toContain('[Summary generation failed]');
+    expect(content).not.toContain('Commit: orignal');
+    expect(content).toContain('Commit: cherryp');
+  });
 });
 
 describe('discoverReflections', () => {

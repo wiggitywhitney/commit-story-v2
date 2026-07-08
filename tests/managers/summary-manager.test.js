@@ -197,6 +197,16 @@ describe('saveDailySummary', () => {
     expect(path).toContain('2026-02-22.md');
     expect(readFileSync(path, 'utf-8')).toBe(content);
   });
+
+  it('regenerates when existing summary is a failure placeholder', async () => {
+    writeSummary('2026-02-22', '[Daily summary generation failed]');
+
+    const content = '# New Summary';
+    const path = await saveDailySummary(content, new Date(2026, 1, 22), tmpDir);
+
+    expect(path).not.toBeNull();
+    expect(readFileSync(path, 'utf-8')).toBe(content);
+  });
 });
 
 describe('generateAndSaveDailySummary', () => {
@@ -269,5 +279,26 @@ describe('generateAndSaveDailySummary', () => {
 
     expect(result.saved).toBe(true);
     expect(mockGenerateDailySummary).toHaveBeenCalledOnce();
+  });
+
+  it('regenerates when existing summary is a failure placeholder', async () => {
+    writeEntry('2026-02-22', SAMPLE_ENTRY);
+    writeSummary('2026-02-22', '[Daily summary generation failed]');
+
+    mockGenerateDailySummary.mockResolvedValue({
+      narrative: 'Real generated narrative.',
+      keyDecisions: '',
+      openThreads: '',
+      errors: [],
+      generatedAt: new Date(),
+    });
+
+    const result = await generateAndSaveDailySummary(new Date(2026, 1, 22), tmpDir);
+
+    expect(result.saved).toBe(true);
+    expect(mockGenerateDailySummary).toHaveBeenCalledOnce();
+    const content = readFileSync(result.path, 'utf-8');
+    expect(content).toContain('Real generated narrative.');
+    expect(content).not.toContain('generation failed');
   });
 });

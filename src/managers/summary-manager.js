@@ -1,7 +1,7 @@
 // ABOUTME: Orchestrates daily, weekly, and monthly summary generation — reads source content, calls graph, writes output
 // ABOUTME: Handles duplicate detection via file existence (DD-003) and force-regeneration
 
-import { readFile, writeFile, access, readdir } from 'node:fs/promises';
+import { readFile, writeFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { generateDailySummary, generateWeeklySummary, generateMonthlySummary } from '../generators/summary-graph.js';
 import {
@@ -12,6 +12,22 @@ import {
   getISOWeekString,
   ensureDirectory,
 } from '../utils/journal-paths.js';
+import { isFailurePlaceholder } from '../utils/failure-placeholder.js';
+
+/**
+ * Check whether a summary file at a path exists with real (non-stale) content.
+ * A failure-placeholder file is treated as if it doesn't exist, so it can be regenerated.
+ * @param {string} summaryPath - Path to the summary file
+ * @returns {Promise<boolean>} True if a real summary already exists at the path
+ */
+async function _hasRealSummary(summaryPath) {
+  try {
+    const existingContent = await readFile(summaryPath, 'utf-8');
+    return !isFailurePlaceholder(existingContent);
+  } catch {
+    return false;
+  }
+}
 
 /** Separator between journal entries (matches journal-manager.js) */
 const ENTRY_SEPARATOR = '═══════════════════════════════════════';
@@ -87,14 +103,9 @@ export async function saveDailySummary(content, date, basePath = '.', options = 
   const summaryPath = getSummaryPath('daily', date, basePath);
 
   // Check for existing summary (DD-003: file existence for duplicate detection)
-  if (!options.force) {
-    try {
-      await access(summaryPath);
-      // File exists, skip
-      return null;
-    } catch {
-      // File doesn't exist, proceed
-    }
+  // A failure-placeholder file is treated as stale and regenerated rather than skipped.
+  if (!options.force && (await _hasRealSummary(summaryPath))) {
+    return null;
   }
 
   await ensureDirectory(summaryPath);
@@ -116,11 +127,8 @@ export async function generateAndSaveDailySummary(date, basePath = '.', options 
   // Check for existing summary first (avoid reading entries unnecessarily)
   if (!options.force) {
     const summaryPath = getSummaryPath('daily', date, basePath);
-    try {
-      await access(summaryPath);
+    if (await _hasRealSummary(summaryPath)) {
       return { saved: false, reason: `Summary already exists for ${dateStr}` };
-    } catch {
-      // Doesn't exist, proceed
     }
   }
 
@@ -264,13 +272,9 @@ export async function saveWeeklySummary(content, weekStr, basePath = '.', option
   const summaryPath = getSummaryPath('weekly', monday, basePath);
 
   // Check for existing summary (DD-003)
-  if (!options.force) {
-    try {
-      await access(summaryPath);
-      return null;
-    } catch {
-      // Doesn't exist, proceed
-    }
+  // A failure-placeholder file is treated as stale and regenerated rather than skipped.
+  if (!options.force && (await _hasRealSummary(summaryPath))) {
+    return null;
   }
 
   await ensureDirectory(summaryPath);
@@ -291,11 +295,8 @@ export async function generateAndSaveWeeklySummary(weekStr, basePath = '.', opti
   if (!options.force) {
     const { monday } = getWeekBoundaries(weekStr);
     const summaryPath = getSummaryPath('weekly', monday, basePath);
-    try {
-      await access(summaryPath);
+    if (await _hasRealSummary(summaryPath)) {
       return { saved: false, reason: `Weekly summary already exists for ${weekStr}` };
-    } catch {
-      // Doesn't exist, proceed
     }
   }
 
@@ -450,13 +451,9 @@ export async function saveMonthlySummary(content, monthStr, basePath = '.', opti
   const summaryPath = getSummaryPath('monthly', firstDay, basePath);
 
   // Check for existing summary (DD-003)
-  if (!options.force) {
-    try {
-      await access(summaryPath);
-      return null;
-    } catch {
-      // Doesn't exist, proceed
-    }
+  // A failure-placeholder file is treated as stale and regenerated rather than skipped.
+  if (!options.force && (await _hasRealSummary(summaryPath))) {
+    return null;
   }
 
   await ensureDirectory(summaryPath);
@@ -477,11 +474,8 @@ export async function generateAndSaveMonthlySummary(monthStr, basePath = '.', op
   if (!options.force) {
     const { firstDay } = getMonthBoundaries(monthStr);
     const summaryPath = getSummaryPath('monthly', firstDay, basePath);
-    try {
-      await access(summaryPath);
+    if (await _hasRealSummary(summaryPath)) {
       return { saved: false, reason: `Monthly summary already exists for ${monthStr}` };
-    } catch {
-      // Doesn't exist, proceed
     }
   }
 

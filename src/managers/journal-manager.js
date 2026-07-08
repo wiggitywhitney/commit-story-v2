@@ -1,11 +1,7 @@
-/**
- * Journal Manager
- *
- * Handles journal entry formatting, file writing, and reflection discovery.
- * Uses fs/promises for async file operations and UTC-first time handling.
- */
+// ABOUTME: Journal entry formatting, file writing, and reflection discovery
+// ABOUTME: Uses fs/promises for async file operations and UTC-first time handling
 
-import { readFile, appendFile, readdir } from 'node:fs/promises';
+import { readFile, appendFile, writeFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   getJournalEntryPath,
@@ -14,6 +10,7 @@ import {
   parseDateFromFilename,
   getYearMonth,
 } from '../utils/journal-paths.js';
+import { isFailurePlaceholder } from '../utils/failure-placeholder.js';
 
 /** Separator between journal entries */
 const ENTRY_SEPARATOR = '\n═══════════════════════════════════════\n\n';
@@ -184,27 +181,38 @@ export async function saveJournalEntry(sections, commit, reflections = [], baseP
   // Check for duplicate entry
   try {
     const existing = await readFile(entryPath, 'utf-8');
+    const entryBlocks = existing.split('═══════════════════════════════════════');
 
     // Path 1: Exact hash match (catches re-runs of the same commit)
-    if (existing.includes(`Commit: ${commit.shortHash}`)) {
-      log(`Skipping duplicate entry: exact hash match (${commit.shortHash})`);
-      return entryPath;
-    }
+    const hashMatchIndex = entryBlocks.findIndex(block => block.includes(`Commit: ${commit.shortHash}`));
 
     // Path 2: Semantic match (catches cherry-pick/rebase duplicates)
     // Cherry-picks and rebases preserve author timestamp and commit message
     // but produce a new commit hash. Match on both to avoid false positives.
-    // Split into entry blocks so we check timestamp+message within the SAME entry,
-    // avoiding false positives when different entries share one field each.
+    // Checked within the SAME entry block to avoid false positives when
+    // different entries each share only one field.
     const timeStr = formatTimestamp(commit.timestamp);
     const commitMessage = (commit.message || '').split('\n')[0];
-    const entryBlocks = existing.split('═══════════════════════════════════════');
-    const isSemanticDup = commitMessage && entryBlocks.some(
-      block => block.includes(`## ${timeStr}`) && block.includes(`**Message**: "${commitMessage}"`)
-    );
-    if (isSemanticDup) {
-      log(`Skipping duplicate entry: semantic match — same timestamp (${timeStr}) and message ("${commitMessage}"), likely cherry-pick/rebase of ${commit.shortHash}`);
-      return entryPath;
+    const semanticMatchIndex = commitMessage
+      ? entryBlocks.findIndex(
+          block => block.includes(`## ${timeStr}`) && block.includes(`**Message**: "${commitMessage}"`)
+        )
+      : -1;
+
+    const matchIndex = hashMatchIndex !== -1 ? hashMatchIndex : semanticMatchIndex;
+
+    if (matchIndex !== -1) {
+      const matchedBlock = entryBlocks[matchIndex];
+
+      if (!isFailurePlaceholder(matchedBlock)) {
+        log(`Skipping duplicate entry: ${hashMatchIndex !== -1 ? 'exact hash match' : 'semantic match'} for ${commit.shortHash}`);
+        return entryPath;
+      }
+
+      // Existing entry is a stale failure placeholder — drop it and regenerate below
+      log(`Regenerating stale placeholder entry for ${commit.shortHash}`);
+      const remaining = entryBlocks.filter((_, i) => i !== matchIndex).join('═══════════════════════════════════════');
+      await writeFile(entryPath, remaining, 'utf-8');
     }
   } catch {
     // File doesn't exist yet, proceed

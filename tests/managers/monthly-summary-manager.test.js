@@ -253,6 +253,18 @@ describe('saveMonthlySummary', () => {
     const content = await readFile(path, 'utf-8');
     expect(content).toBe('new content');
   });
+
+  it('regenerates when existing summary is a failure placeholder', async () => {
+    const monthlyDir = join(tmpDir, 'journal', 'summaries', 'monthly');
+    await mkdir(monthlyDir, { recursive: true });
+    await writeFile(join(monthlyDir, '2026-02.md'), '[Monthly summary generation failed]', 'utf-8');
+
+    const path = await saveMonthlySummary('new content', '2026-02', tmpDir);
+    expect(path).not.toBeNull();
+
+    const content = await readFile(path, 'utf-8');
+    expect(content).toBe('new content');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -360,5 +372,38 @@ No open threads carrying into next month.`;
     expect(result.saved).toBe(true);
     const content = await readFile(result.path, 'utf-8');
     expect(content).toContain('New monthly narrative');
+  });
+
+  it('regenerates when existing monthly summary is a failure placeholder', async () => {
+    const monthlyDir = join(tmpDir, 'journal', 'summaries', 'monthly');
+    await mkdir(monthlyDir, { recursive: true });
+    await writeFile(join(monthlyDir, '2026-02.md'), '[Monthly summary generation failed]', 'utf-8');
+
+    await _writeWeeklySummary(tmpDir, '2026-W06', _makeWeeklySummaryContent('2026-W06'));
+
+    const llmOutput = `## Month in Review
+
+Real monthly narrative.
+
+## Accomplishments
+
+- Real accomplishment
+
+## Growth
+
+No notable growth signals this month.
+
+## Looking Ahead
+
+No open threads carrying into next month.`;
+
+    mockInvoke.mockResolvedValue({ content: llmOutput });
+
+    const result = await generateAndSaveMonthlySummary('2026-02', tmpDir);
+
+    expect(result.saved).toBe(true);
+    const content = await readFile(result.path, 'utf-8');
+    expect(content).toContain('Real monthly narrative');
+    expect(content).not.toContain('generation failed');
   });
 });
