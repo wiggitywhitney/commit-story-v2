@@ -76,7 +76,11 @@ find_package_dir() {
 
   if [[ -z "$PKG_DIR" || ! -f "$PKG_DIR/src/index.js" ]]; then
     # Fallback: try npx (may resolve to an older published version)
-    npx commit-story
+    #
+    # Strip gateway env vars here too — this path runs a real Anthropic SDK call same as
+    # the branches below, and is just as vulnerable to the silent gateway leak (see comment
+    # above the vals/node invocations for the full explanation).
+    env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL npx commit-story
     exit
   fi
 
@@ -89,11 +93,18 @@ find_package_dir() {
   fi
 
   # Inject secrets via vals if .vals.yaml exists in the target repo
+  #
+  # Strip ANTHROPIC_BASE_URL / ANTHROPIC_CUSTOM_HEADERS unconditionally: Claude Code sets
+  # these to route its own Anthropic calls through the Datadog AI Gateway. If a commit is
+  # made from inside a Claude Code session, this hook's child node process inherits them,
+  # sending commit-story's own Anthropic SDK calls to the gateway URL without valid gateway
+  # headers. The hook still exits 0, so the failure is silent — journal entries are saved
+  # with "[... generation failed]" placeholder text instead of real content.
   REPO_ROOT="$(git rev-parse --show-toplevel)"
   if [[ -f "$REPO_ROOT/.vals.yaml" ]] && command -v vals >/dev/null 2>&1; then
-    vals exec -f "$REPO_ROOT/.vals.yaml" -- node "${NODE_ARGS[@]}"
+    env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL vals exec -f "$REPO_ROOT/.vals.yaml" -- node "${NODE_ARGS[@]}"
   else
-    node "${NODE_ARGS[@]}"
+    env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL node "${NODE_ARGS[@]}"
   fi
 ) &
 HOOKEOF

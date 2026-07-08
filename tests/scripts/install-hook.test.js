@@ -83,6 +83,28 @@ describe('install-hook.sh', () => {
     expect(hookContent).toMatch(/npx commit-story/);
   });
 
+  it('strips ANTHROPIC_BASE_URL and ANTHROPIC_CUSTOM_HEADERS before all three invocations', () => {
+    execFileSync('bash', [INSTALL_SCRIPT], {
+      cwd: tmpDir,
+      stdio: 'pipe',
+      env: {
+        ...process.env,
+        ANTHROPIC_BASE_URL: 'https://ai-gateway.us1.ddbuild.io',
+        ANTHROPIC_CUSTOM_HEADERS: 'source: claude-code',
+      },
+    });
+
+    const hookContent = readFileSync(join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf-8');
+    const stripPrefix = 'env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL';
+
+    // Must precede the vals exec invocation
+    expect(hookContent).toContain(`${stripPrefix} vals exec`);
+    // Must precede the plain node fallback invocation
+    expect(hookContent).toContain(`${stripPrefix} node "${'${NODE_ARGS[@]}'}"`);
+    // Must precede the npx fallback invocation (package directory not found)
+    expect(hookContent).toContain(`${stripPrefix} npx commit-story`);
+  });
+
   it('makes hook executable', () => {
     execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
 
