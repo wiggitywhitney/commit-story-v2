@@ -1,5 +1,5 @@
 // ABOUTME: Tests for the shared failure-placeholder detection helper
-// ABOUTME: Verifies substring matching used to identify stale, regenerable content
+// ABOUTME: Verifies bracketed-marker matching used to identify stale, regenerable content
 
 import { describe, it, expect } from 'vitest';
 import { isFailurePlaceholder } from '../../src/utils/failure-placeholder.js';
@@ -15,6 +15,10 @@ describe('isFailurePlaceholder', () => {
 
   it('returns false for real content', () => {
     expect(isFailurePlaceholder('The team refactored the auth module today.')).toBe(false);
+  });
+
+  it('returns false when real narrative content mentions the phrase without brackets', () => {
+    expect(isFailurePlaceholder('The nightly build had a generation failed error that we tracked down.')).toBe(false);
   });
 
   it('returns false for empty or missing content', () => {

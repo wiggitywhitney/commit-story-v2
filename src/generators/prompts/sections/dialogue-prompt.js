@@ -1,3 +1,6 @@
+// ABOUTME: Prompt template for extracting supporting human dialogue quotes for journal entries
+// ABOUTME: Uses an 8-step journalist-style architecture to find, verify, and format quotes tied to the summary
+
 /**
  * Development Dialogue Section Prompt - Restructured with Step-Based Architecture
  *
@@ -20,6 +23,8 @@ As a journalist, your job is to find compelling quotes from the developer that b
 CRITICAL: In the chat data, type:"user" messages are from the human developer. type:"assistant" messages are from the AI. Only extract from type:"user" messages.
 
 Find ALL user quotes that support the key moments from the summary. Keep referring back to the summary - it's your article. Extract quotes verbatim - misquoting someone is not acceptable. Use [...] to truncate quotes when needed to keep them focused and interesting.
+
+IMPORTANT: "Supports the summary" means the quote is evidence for something the summary describes - it does NOT mean the quote is redundant with the summary. A quote whose content is already reflected in the summary is exactly what you're looking for: it's the human voice behind the narrated event. Never discard a quote just because the summary already covers what it says.
 
 Skip these types of content entirely:
 - Messages with markdown structure (## headers, | tables |, \`\`\` code blocks)
@@ -64,7 +69,7 @@ IMPORTANT: Group each exchange together. A human quote with its AI response shou
 
 Before publishing, journalists fact-check. For your complete set of quotes with AI context, verify:
 
-✓ **Summary alignment**: Every quote supports the story told in the summary
+✓ **Summary alignment**: Every quote supports the story told in the summary (overlapping with the summary's content is a pass, not a reason to remove)
 ✓ **Deduplication**: Scan all quotes - remove duplicates or near-duplicates
 ✓ **Attribution accuracy**: Every "Human:" is type:"user", every "Assistant:" is type:"assistant"
 ✓ **Chronological order**: Quotes appear in chat order

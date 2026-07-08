@@ -179,9 +179,10 @@ export async function saveJournalEntry(sections, commit, reflections = [], baseP
   await ensureDirectory(entryPath);
 
   // Check for duplicate entry
+  let strippedContent = null;
   try {
     const existing = await readFile(entryPath, 'utf-8');
-    const entryBlocks = existing.split('═══════════════════════════════════════');
+    const entryBlocks = existing.split(ENTRY_SEPARATOR.trim());
 
     // Path 1: Exact hash match (catches re-runs of the same commit)
     const hashMatchIndex = entryBlocks.findIndex(block => block.includes(`Commit: ${commit.shortHash}`));
@@ -211,18 +212,24 @@ export async function saveJournalEntry(sections, commit, reflections = [], baseP
 
       // Existing entry is a stale failure placeholder — drop it and regenerate below
       log(`Regenerating stale placeholder entry for ${commit.shortHash}`);
-      const remaining = entryBlocks.filter((_, i) => i !== matchIndex).join('═══════════════════════════════════════');
-      await writeFile(entryPath, remaining, 'utf-8');
+      strippedContent = entryBlocks.filter((_, i) => i !== matchIndex).join(ENTRY_SEPARATOR.trim());
     }
-  } catch {
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
     // File doesn't exist yet, proceed
   }
 
   // Format the entry
   const formattedEntry = formatJournalEntry(sections, commit, reflections);
 
-  // Append to file (creates if doesn't exist)
-  await appendFile(entryPath, formattedEntry + '\n', 'utf-8');
+  if (strippedContent !== null) {
+    // Replace the stale block and add the regenerated entry in a single write, so a
+    // crash between removing the placeholder and appending the fresh entry can't lose it
+    await writeFile(entryPath, strippedContent + formattedEntry + '\n', 'utf-8');
+  } else {
+    // Append to file (creates if doesn't exist)
+    await appendFile(entryPath, formattedEntry + '\n', 'utf-8');
+  }
 
   return entryPath;
 }
