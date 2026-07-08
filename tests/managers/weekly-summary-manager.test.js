@@ -244,6 +244,18 @@ describe('saveWeeklySummary', () => {
     const content = await readFile(path, 'utf-8');
     expect(content).toBe('new content');
   });
+
+  it('regenerates when existing summary is a failure placeholder', async () => {
+    const weeklyDir = join(tmpDir, 'journal', 'summaries', 'weekly');
+    await mkdir(weeklyDir, { recursive: true });
+    await writeFile(join(weeklyDir, '2026-W10.md'), '[Weekly summary generation failed]', 'utf-8');
+
+    const path = await saveWeeklySummary('new content', '2026-W10', tmpDir);
+    expect(path).not.toBeNull();
+
+    const content = await readFile(path, 'utf-8');
+    expect(content).toBe('new content');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -343,5 +355,34 @@ No notable patterns this week.`;
     expect(result.saved).toBe(true);
     const content = await readFile(result.path, 'utf-8');
     expect(content).toContain('New weekly narrative');
+  });
+
+  it('regenerates when existing weekly summary is a failure placeholder', async () => {
+    const weeklyDir = join(tmpDir, 'journal', 'summaries', 'weekly');
+    await mkdir(weeklyDir, { recursive: true });
+    await writeFile(join(weeklyDir, '2026-W10.md'), '[Weekly summary generation failed]', 'utf-8');
+
+    await _writeDailySummary(tmpDir, '2026-03-02', _makeDailySummaryContent('2026-03-02'));
+
+    const llmOutput = `## Week in Review
+
+Real weekly narrative.
+
+## Highlights
+
+- Real highlight
+
+## Patterns
+
+No notable patterns this week.`;
+
+    mockInvoke.mockResolvedValue({ content: llmOutput });
+
+    const result = await generateAndSaveWeeklySummary('2026-W10', tmpDir);
+
+    expect(result.saved).toBe(true);
+    const content = await readFile(result.path, 'utf-8');
+    expect(content).toContain('Real weekly narrative');
+    expect(content).not.toContain('generation failed');
   });
 });
