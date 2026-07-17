@@ -32,6 +32,18 @@ groups:
         type: int
         stability: development
         brief: "Agent-discovered attribute: commit_story.journal.reflections_count"
+      - id: commit_story.summarize.dates_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.summarize.dates_count"
+      - id: commit_story.summarize.force
+        type: boolean
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.summarize.force"
+      - id: commit_story.summarize.failed_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.summarize.failed_count"
   - id: span.commit_story.claude.collect_chat_messages
     type: span
     stability: development
@@ -174,4 +186,19 @@ groups:
     stability: development
     brief: "Agent-discovered span:
       commit_story.journal.generate_and_save_monthly_summary"
+    span_kind: internal
+  - id: span.commit_story.commands.run_summarize
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.commands.run_summarize"
+    span_kind: internal
+  - id: span.commit_story.commands.run_weekly_summarize
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.commands.run_weekly_summarize"
+    span_kind: internal
+  - id: span.commit_story.commands.run_monthly_summarize
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.commands.run_monthly_summarize"
     span_kind: internal
