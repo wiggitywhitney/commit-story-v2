@@ -4,3 +4,13 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.claude.collect_chat_messages"
     span_kind: internal
+  - id: span.commit_story.git.get_previous_commit_time
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.get_previous_commit_time"
+    span_kind: internal
+  - id: span.commit_story.git.get_commit_data
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.get_commit_data"
+    span_kind: internal
