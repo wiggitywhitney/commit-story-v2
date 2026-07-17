@@ -12,6 +12,18 @@ groups:
         type: string
         stability: development
         brief: "Agent-discovered attribute: commit_story.ai.max_quotes"
+      - id: commit_story.journal.entries_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.journal.entries_count"
+      - id: commit_story.journal.week_label
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.journal.week_label"
+      - id: commit_story.journal.month_label
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.journal.month_label"
   - id: span.commit_story.claude.collect_chat_messages
     type: span
     stability: development
@@ -51,4 +63,34 @@ groups:
     type: span
     stability: development
     brief: "Agent-discovered span: commit_story.ai.generate_journal_sections"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_daily_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_daily_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_daily_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_daily_summary"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_weekly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_weekly_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_weekly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_weekly_summary"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_monthly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_monthly_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_monthly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_monthly_summary"
     span_kind: internal
