@@ -24,6 +24,14 @@ groups:
         type: boolean
         stability: development
         brief: "Agent-discovered attribute: commit_story.git.has_previous_commit"
+      - id: commit_story.journal.has_functional_code
+        type: boolean
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.journal.has_functional_code"
+      - id: commit_story.journal.has_chat_context
+        type: boolean
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.journal.has_chat_context"
   - id: span.commit_story.context.collect_chat_messages
     type: span
     stability: development
@@ -63,4 +71,24 @@ groups:
     type: span
     stability: development
     brief: "Agent-discovered span: commit_story.context.gather_context"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_summary"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_technical_decisions
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_technical_decisions"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_dialogue
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_dialogue"
+    span_kind: internal
+  - id: span.commit_story.journal.generate_sections
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.generate_sections"
     span_kind: internal
