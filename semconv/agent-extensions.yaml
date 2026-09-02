@@ -40,6 +40,10 @@ groups:
         type: string
         stability: development
         brief: "Agent-discovered attribute: commit_story.summary.month_label"
+      - id: commit_story.mcp.transport
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.mcp.transport"
   - id: span.commit_story.context.collect
     type: span
     stability: development
@@ -139,4 +143,9 @@ groups:
     type: span
     stability: development
     brief: "Agent-discovered span: commit_story.mcp.capture_context"
+    span_kind: internal
+  - id: span.commit_story.mcp.server.start
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.mcp.server.start"
     span_kind: internal
