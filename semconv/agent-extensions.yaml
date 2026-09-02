@@ -1,0 +1,15 @@
+groups:
+  - id: registry.commit_story.agent_extensions
+    type: attribute_group
+    display_name: Agent-Created Attributes
+    brief: Attributes created by the instrumentation agent
+    attributes:
+      - id: commit_story.context.repo_path
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.context.repo_path"
+  - id: span.commit_story.context.collect
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.context.collect"
+    span_kind: internal
