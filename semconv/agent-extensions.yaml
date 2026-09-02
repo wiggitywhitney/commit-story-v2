@@ -16,6 +16,18 @@ groups:
         type: int
         stability: development
         brief: "Agent-discovered attribute: commit_story.git.parent_count"
+      - id: commit_story.ai.substantial_messages_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.ai.substantial_messages_count"
+      - id: commit_story.ai.max_quotes
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.ai.max_quotes"
+      - id: commit_story.journal.errors_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.journal.errors_count"
   - id: span.commit_story.context.collect
     type: span
     stability: development
@@ -55,4 +67,24 @@ groups:
     type: span
     stability: development
     brief: "Agent-discovered span: commit_story.context.gather_for_commit"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_summary"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_technical_decisions
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_technical_decisions"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_dialogue
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_dialogue"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_journal_sections
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_journal_sections"
     span_kind: internal
