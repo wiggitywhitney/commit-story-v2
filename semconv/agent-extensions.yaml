@@ -295,3 +295,13 @@ groups:
     brief: "Agent-discovered span:
       commit_story.journal.trigger_auto_monthly_summaries"
     span_kind: internal
+  - id: span.commit_story.cli.handle_summarize
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.cli.handle_summarize"
+    span_kind: internal
+  - id: span.commit_story.cli.main
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.cli.main"
+    span_kind: internal
