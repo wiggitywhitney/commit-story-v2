@@ -28,6 +28,18 @@ groups:
         type: int
         stability: development
         brief: "Agent-discovered attribute: commit_story.journal.errors_count"
+      - id: commit_story.summary.entry_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.summary.entry_count"
+      - id: commit_story.summary.week_label
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.summary.week_label"
+      - id: commit_story.summary.month_label
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.summary.month_label"
   - id: span.commit_story.context.collect
     type: span
     stability: development
@@ -87,4 +99,34 @@ groups:
     type: span
     stability: development
     brief: "Agent-discovered span: commit_story.ai.generate_journal_sections"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_daily_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_daily_summary"
+    span_kind: internal
+  - id: span.commit_story.ai.run_daily_summary_graph
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.run_daily_summary_graph"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_weekly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_weekly_summary"
+    span_kind: internal
+  - id: span.commit_story.ai.run_weekly_summary_graph
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.run_weekly_summary_graph"
+    span_kind: internal
+  - id: span.commit_story.ai.generate_monthly_summary
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.generate_monthly_summary"
+    span_kind: internal
+  - id: span.commit_story.ai.run_monthly_summary_graph
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.ai.run_monthly_summary_graph"
     span_kind: internal
