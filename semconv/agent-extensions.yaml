@@ -8,8 +8,46 @@ groups:
         type: string
         stability: development
         brief: "Agent-discovered attribute: commit_story.context.repo_path"
+      - id: commit_story.git.diff_size
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.git.diff_size"
+      - id: commit_story.git.parent_count
+        type: int
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.git.parent_count"
   - id: span.commit_story.context.collect
     type: span
     stability: development
     brief: "Agent-discovered span: commit_story.context.collect"
+    span_kind: internal
+  - id: span.commit_story.git.run_command
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.run_command"
+    span_kind: internal
+  - id: span.commit_story.git.get_commit_metadata
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.get_commit_metadata"
+    span_kind: internal
+  - id: span.commit_story.git.get_commit_diff
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.get_commit_diff"
+    span_kind: internal
+  - id: span.commit_story.git.get_merge_info
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.get_merge_info"
+    span_kind: internal
+  - id: span.commit_story.git.get_previous_commit_time
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.get_previous_commit_time"
+    span_kind: internal
+  - id: span.commit_story.git.get_commit_data
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.git.get_commit_data"
     span_kind: internal
