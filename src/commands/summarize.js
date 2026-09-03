@@ -1,11 +1,18 @@
 // ABOUTME: CLI handler for the "summarize" subcommand — backfill daily, weekly, and monthly summaries on demand
 // ABOUTME: Parses date/range/week/month args, orchestrates generation with progress output and --force flag
 
-import { generateAndSaveDailySummary, generateAndSaveWeeklySummary, generateAndSaveMonthlySummary } from '../managers/summary-manager.js';
+import {
+  generateAndSaveDailySummary,
+  generateAndSaveWeeklySummary,
+  generateAndSaveMonthlySummary
+} from '../managers/summary-manager.js';
 import { readDayEntries } from '../managers/summary-manager.js';
 import { getSummaryPath } from '../utils/journal-paths.js';
 import { access } from 'node:fs/promises';
 import logger from '../logger.js';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Validate a YYYY-MM-DD date string.
@@ -38,7 +45,7 @@ export function isValidWeekString(str) {
     // or if Jan 1 is Wednesday in a leap year
     const jan1 = new Date(year, 0, 1);
     const jan1Day = jan1.getDay(); // 0=Sun, 4=Thu
-    const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+    const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
     if (jan1Day !== 4 && !(jan1Day === 3 && isLeap)) return false;
   }
   return true;
@@ -110,46 +117,130 @@ export function parseSummarizeArgs(args) {
   }
 
   if (weekly && monthly) {
-    return { dates: [], weeks: [], months: [], force, help: false, weekly, monthly, error: 'Use either --weekly or --monthly, not both.' };
+    return {
+      dates: [],
+      weeks: [],
+      months: [],
+      force,
+      help: false,
+      weekly,
+      monthly,
+      error: 'Use either --weekly or --monthly, not both.'
+    };
   }
   if (unknownFlags.length > 0) {
-    return { dates: [], weeks: [], months: [], force, help: false, weekly, monthly, error: `Unknown option(s): ${unknownFlags.join(', ')}` };
+    return {
+      dates: [],
+      weeks: [],
+      months: [],
+      force,
+      help: false,
+      weekly,
+      monthly,
+      error: `Unknown option(s): ${unknownFlags.join(', ')}`
+    };
   }
   if (positionalArgs.length > 1) {
-    return { dates: [], weeks: [], months: [], force, help: false, weekly, monthly, error: `Too many arguments: ${positionalArgs.join(' ')}` };
+    return {
+      dates: [],
+      weeks: [],
+      months: [],
+      force,
+      help: false,
+      weekly,
+      monthly,
+      error: `Too many arguments: ${positionalArgs.join(' ')}`
+    };
   }
   const dateArg = positionalArgs[0] || null;
 
   if (help) {
-    return { dates: [], weeks: [], months: [], force, help: true, weekly, monthly, error: null };
+    return {
+      dates: [],
+      weeks: [],
+      months: [],
+      force,
+      help: true,
+      weekly,
+      monthly,
+      error: null
+    };
   }
 
   if (!dateArg) {
     let usage;
     if (monthly) {
-      usage = 'Missing month argument. Usage: commit-story summarize --monthly <YYYY-MM> [--force]';
+      usage =
+        'Missing month argument. Usage: commit-story summarize --monthly <YYYY-MM> [--force]';
     } else if (weekly) {
-      usage = 'Missing week argument. Usage: commit-story summarize --weekly <YYYY-Www> [--force]';
+      usage =
+        'Missing week argument. Usage: commit-story summarize --weekly <YYYY-Www> [--force]';
     } else {
-      usage = 'Missing date argument. Usage: commit-story summarize <date|date-range> [--force]';
+      usage =
+        'Missing date argument. Usage: commit-story summarize <date|date-range> [--force]';
     }
-    return { dates: [], weeks: [], months: [], force, help: false, weekly, monthly, error: usage };
+    return {
+      dates: [],
+      weeks: [],
+      months: [],
+      force,
+      help: false,
+      weekly,
+      monthly,
+      error: usage
+    };
   }
 
   // Monthly mode: expect YYYY-MM string
   if (monthly) {
     if (!isValidMonthString(dateArg)) {
-      return { dates: [], weeks: [], months: [], force, help: false, weekly, monthly, error: `Invalid month format: ${dateArg}. Expected YYYY-MM (e.g., 2026-02)` };
+      return {
+        dates: [],
+        weeks: [],
+        months: [],
+        force,
+        help: false,
+        weekly,
+        monthly,
+        error: `Invalid month format: ${dateArg}. Expected YYYY-MM (e.g., 2026-02)`
+      };
     }
-    return { dates: [], weeks: [], months: [dateArg], force, help: false, weekly, monthly, error: null };
+    return {
+      dates: [],
+      weeks: [],
+      months: [dateArg],
+      force,
+      help: false,
+      weekly,
+      monthly,
+      error: null
+    };
   }
 
   // Weekly mode: expect ISO week string(s)
   if (weekly) {
     if (!isValidWeekString(dateArg)) {
-      return { dates: [], weeks: [], months: [], force, help: false, weekly, monthly, error: `Invalid week format: ${dateArg}. Expected YYYY-Www (e.g., 2026-W08)` };
+      return {
+        dates: [],
+        weeks: [],
+        months: [],
+        force,
+        help: false,
+        weekly,
+        monthly,
+        error: `Invalid week format: ${dateArg}. Expected YYYY-Www (e.g., 2026-W08)`
+      };
     }
-    return { dates: [], weeks: [dateArg], months: [], force, help: false, weekly, monthly, error: null };
+    return {
+      dates: [],
+      weeks: [dateArg],
+      months: [],
+      force,
+      help: false,
+      weekly,
+      monthly,
+      error: null
+    };
   }
 
   // Daily mode: date or date range
@@ -157,25 +248,70 @@ export function parseSummarizeArgs(args) {
   if (dateArg.includes('..')) {
     const parts = dateArg.split('..');
     if (parts.length !== 2) {
-      return { dates: [], weeks: [], months: [], force, help: false, weekly, monthly, error: `Invalid date range: ${dateArg}` };
+      return {
+        dates: [],
+        weeks: [],
+        months: [],
+        force,
+        help: false,
+        weekly,
+        monthly,
+        error: `Invalid date range: ${dateArg}`
+      };
     }
     const [a, b] = parts;
     if (!isValidDate(a) || !isValidDate(b)) {
-      return { dates: [], weeks: [], months: [], force, help: false, weekly, monthly, error: `Invalid date in range: ${dateArg}` };
+      return {
+        dates: [],
+        weeks: [],
+        months: [],
+        force,
+        help: false,
+        weekly,
+        monthly,
+        error: `Invalid date in range: ${dateArg}`
+      };
     }
     // Normalize reversed ranges to ascending
     const start = a <= b ? a : b;
     const end = a <= b ? b : a;
     const dates = expandDateRange(start, end);
-    return { dates, weeks: [], months: [], force, help: false, weekly, monthly, error: null };
+    return {
+      dates,
+      weeks: [],
+      months: [],
+      force,
+      help: false,
+      weekly,
+      monthly,
+      error: null
+    };
   }
 
   // Single date
   if (!isValidDate(dateArg)) {
-    return { dates: [], weeks: [], months: [], force, help: false, weekly, monthly, error: `Invalid date format: ${dateArg}. Expected YYYY-MM-DD` };
+    return {
+      dates: [],
+      weeks: [],
+      months: [],
+      force,
+      help: false,
+      weekly,
+      monthly,
+      error: `Invalid date format: ${dateArg}. Expected YYYY-MM-DD`
+    };
   }
 
-  return { dates: [dateArg], weeks: [], months: [], force, help: false, weekly, monthly, error: null };
+  return {
+    dates: [dateArg],
+    weeks: [],
+    months: [],
+    force,
+    help: false,
+    weekly,
+    monthly,
+    error: null
+  };
 }
 
 /**
@@ -184,73 +320,104 @@ export function parseSummarizeArgs(args) {
  * @returns {Promise<{ generated: string[], noEntries: string[], alreadyExists: string[], failed: string[], errors: string[] }>}
  */
 export async function runSummarize(options) {
-  const { dates, force, basePath = '.', onProgress } = options;
+  return tracer.startActiveSpan(
+    'commit_story.journal.run_summarize',
+    async (span) => {
+      try {
+        const { dates, force, basePath = '.', onProgress } = options;
 
-  const result = {
-    generated: [],
-    noEntries: [],
-    alreadyExists: [],
-    failed: [],
-    errors: [],
-  };
+        span.setAttribute('commit_story.context.repo_path', basePath);
+        span.setAttribute(
+          'commit_story.journal.dates_count',
+          String(dates.length)
+        );
+        span.setAttribute('commit_story.journal.force', force);
 
-  for (const dateStr of dates) {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
+        const result = {
+          generated: [],
+          noEntries: [],
+          alreadyExists: [],
+          failed: [],
+          errors: []
+        };
 
-    try {
-      // Check for entries first
-      const entries = await readDayEntries(date, basePath);
-      if (entries.length === 0) {
-        result.noEntries.push(dateStr);
-        if (onProgress) {
-          onProgress(`Skipped ${dateStr}: no entries`);
-        }
-        continue;
-      }
+        for (const dateStr of dates) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const date = new Date(year, month - 1, day);
 
-      // Check for existing summary (unless --force)
-      if (!force) {
-        const summaryPath = getSummaryPath('daily', date, basePath);
-        try {
-          await access(summaryPath);
-          result.alreadyExists.push(dateStr);
-          if (onProgress) {
-            onProgress(`Skipped ${dateStr}: summary already exists`);
+          try {
+            // Check for entries first
+            const entries = await readDayEntries(date, basePath);
+            if (entries.length === 0) {
+              result.noEntries.push(dateStr);
+              if (onProgress) {
+                onProgress(`Skipped ${dateStr}: no entries`);
+              }
+              continue;
+            }
+
+            // Check for existing summary (unless --force)
+            if (!force) {
+              const summaryPath = getSummaryPath('daily', date, basePath);
+              try {
+                await access(summaryPath);
+                result.alreadyExists.push(dateStr);
+                if (onProgress) {
+                  onProgress(`Skipped ${dateStr}: summary already exists`);
+                }
+                continue;
+              } catch {
+                // Doesn't exist, proceed
+              }
+            }
+
+            // Generate and save
+            const genResult = await generateAndSaveDailySummary(
+              date,
+              basePath,
+              { force }
+            );
+
+            if (genResult.saved) {
+              result.generated.push(dateStr);
+              if (onProgress) {
+                onProgress(
+                  `Generated summary for ${dateStr} (${genResult.entryCount} entries)`
+                );
+              }
+              if (genResult.errors && genResult.errors.length > 0) {
+                for (const err of genResult.errors) {
+                  result.errors.push(`${dateStr}: ${err}`);
+                }
+              }
+            } else {
+              // Shouldn't happen since we checked above, but handle gracefully
+              result.noEntries.push(dateStr);
+            }
+          } catch (err) {
+            result.failed.push(dateStr);
+            result.errors.push(`${dateStr}: ${err.message}`);
+            if (onProgress) {
+              onProgress(`Failed ${dateStr}: ${err.message}`);
+            }
           }
-          continue;
-        } catch {
-          // Doesn't exist, proceed
         }
-      }
 
-      // Generate and save
-      const genResult = await generateAndSaveDailySummary(date, basePath, { force });
+        span.setAttribute(
+          'commit_story.journal.errors_count',
+          result.errors.length
+        );
 
-      if (genResult.saved) {
-        result.generated.push(dateStr);
-        if (onProgress) {
-          onProgress(`Generated summary for ${dateStr} (${genResult.entryCount} entries)`);
-        }
-        if (genResult.errors && genResult.errors.length > 0) {
-          for (const err of genResult.errors) {
-            result.errors.push(`${dateStr}: ${err}`);
-          }
-        }
-      } else {
-        // Shouldn't happen since we checked above, but handle gracefully
-        result.noEntries.push(dateStr);
-      }
-    } catch (err) {
-      result.failed.push(dateStr);
-      result.errors.push(`${dateStr}: ${err.message}`);
-      if (onProgress) {
-        onProgress(`Failed ${dateStr}: ${err.message}`);
+        return result;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
       }
     }
-  }
-
-  return result;
+  );
 }
 
 /**
@@ -259,53 +426,91 @@ export async function runSummarize(options) {
  * @returns {Promise<{ generated: string[], noSummaries: string[], alreadyExists: string[], failed: string[], errors: string[] }>}
  */
 export async function runWeeklySummarize(options) {
-  const { weeks, force, basePath = '.', onProgress } = options;
+  return tracer.startActiveSpan(
+    'commit_story.journal.run_weekly_summarize',
+    async (span) => {
+      try {
+        const { weeks, force, basePath = '.', onProgress } = options;
 
-  const result = {
-    generated: [],
-    noSummaries: [],
-    alreadyExists: [],
-    failed: [],
-    errors: [],
-  };
+        span.setAttribute('commit_story.journal.force', force);
+        span.setAttribute('commit_story.context.repo_path', basePath);
+        span.setAttribute('commit_story.journal.dates_count', weeks.length);
 
-  for (const weekStr of weeks) {
-    try {
-      const genResult = await generateAndSaveWeeklySummary(weekStr, basePath, { force });
+        const result = {
+          generated: [],
+          noSummaries: [],
+          alreadyExists: [],
+          failed: [],
+          errors: []
+        };
 
-      if (genResult.saved) {
-        result.generated.push(weekStr);
-        if (onProgress) {
-          onProgress(`Generated weekly summary for ${weekStr} (${genResult.dayCount} daily summaries)`);
-        }
-        if (genResult.errors && genResult.errors.length > 0) {
-          for (const err of genResult.errors) {
-            result.errors.push(`${weekStr}: ${err}`);
+        for (const weekStr of weeks) {
+          try {
+            const genResult = await generateAndSaveWeeklySummary(
+              weekStr,
+              basePath,
+              { force }
+            );
+
+            if (genResult.saved) {
+              result.generated.push(weekStr);
+              if (onProgress) {
+                onProgress(
+                  `Generated weekly summary for ${weekStr} (${genResult.dayCount} daily summaries)`
+                );
+              }
+              if (genResult.errors && genResult.errors.length > 0) {
+                for (const err of genResult.errors) {
+                  result.errors.push(`${weekStr}: ${err}`);
+                }
+              }
+            } else if (
+              genResult.reason &&
+              genResult.reason.includes('no daily summaries')
+            ) {
+              result.noSummaries.push(weekStr);
+              if (onProgress) {
+                onProgress(`Skipped ${weekStr}: no daily summaries`);
+              }
+            } else if (
+              genResult.reason &&
+              genResult.reason.includes('already exists')
+            ) {
+              result.alreadyExists.push(weekStr);
+              if (onProgress) {
+                onProgress(`Skipped ${weekStr}: weekly summary already exists`);
+              }
+            } else {
+              result.noSummaries.push(weekStr);
+            }
+          } catch (err) {
+            result.failed.push(weekStr);
+            result.errors.push(`${weekStr}: ${err.message}`);
+            if (onProgress) {
+              onProgress(`Failed ${weekStr}: ${err.message}`);
+            }
           }
         }
-      } else if (genResult.reason && genResult.reason.includes('no daily summaries')) {
-        result.noSummaries.push(weekStr);
-        if (onProgress) {
-          onProgress(`Skipped ${weekStr}: no daily summaries`);
-        }
-      } else if (genResult.reason && genResult.reason.includes('already exists')) {
-        result.alreadyExists.push(weekStr);
-        if (onProgress) {
-          onProgress(`Skipped ${weekStr}: weekly summary already exists`);
-        }
-      } else {
-        result.noSummaries.push(weekStr);
-      }
-    } catch (err) {
-      result.failed.push(weekStr);
-      result.errors.push(`${weekStr}: ${err.message}`);
-      if (onProgress) {
-        onProgress(`Failed ${weekStr}: ${err.message}`);
+
+        span.setAttribute(
+          'commit_story.summary.entry_count',
+          result.generated.length
+        );
+        span.setAttribute(
+          'commit_story.journal.errors_count',
+          result.errors.length
+        );
+
+        return result;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
       }
     }
-  }
-
-  return result;
+  );
 }
 
 /**
@@ -314,53 +519,95 @@ export async function runWeeklySummarize(options) {
  * @returns {Promise<{ generated: string[], noSummaries: string[], alreadyExists: string[], failed: string[], errors: string[] }>}
  */
 export async function runMonthlySummarize(options) {
-  const { months, force, basePath = '.', onProgress } = options;
+  return tracer.startActiveSpan(
+    'commit_story.journal.run_monthly_summarize',
+    async (span) => {
+      try {
+        const { months, force, basePath = '.', onProgress } = options;
 
-  const result = {
-    generated: [],
-    noSummaries: [],
-    alreadyExists: [],
-    failed: [],
-    errors: [],
-  };
+        span.setAttribute('commit_story.journal.force', force);
+        span.setAttribute(
+          'commit_story.summary.months_count',
+          String(months.length)
+        );
 
-  for (const monthStr of months) {
-    try {
-      const genResult = await generateAndSaveMonthlySummary(monthStr, basePath, { force });
+        const result = {
+          generated: [],
+          noSummaries: [],
+          alreadyExists: [],
+          failed: [],
+          errors: []
+        };
 
-      if (genResult.saved) {
-        result.generated.push(monthStr);
-        if (onProgress) {
-          onProgress(`Generated monthly summary for ${monthStr} (${genResult.weekCount} weekly summaries)`);
-        }
-        if (genResult.errors && genResult.errors.length > 0) {
-          for (const err of genResult.errors) {
-            result.errors.push(`${monthStr}: ${err}`);
+        for (const monthStr of months) {
+          try {
+            const genResult = await generateAndSaveMonthlySummary(
+              monthStr,
+              basePath,
+              { force }
+            );
+
+            if (genResult.saved) {
+              result.generated.push(monthStr);
+              if (onProgress) {
+                onProgress(
+                  `Generated monthly summary for ${monthStr} (${genResult.weekCount} weekly summaries)`
+                );
+              }
+              if (genResult.errors && genResult.errors.length > 0) {
+                for (const err of genResult.errors) {
+                  result.errors.push(`${monthStr}: ${err}`);
+                }
+              }
+            } else if (
+              genResult.reason &&
+              genResult.reason.includes('no weekly summaries')
+            ) {
+              result.noSummaries.push(monthStr);
+              if (onProgress) {
+                onProgress(`Skipped ${monthStr}: no weekly summaries`);
+              }
+            } else if (
+              genResult.reason &&
+              genResult.reason.includes('already exists')
+            ) {
+              result.alreadyExists.push(monthStr);
+              if (onProgress) {
+                onProgress(
+                  `Skipped ${monthStr}: monthly summary already exists`
+                );
+              }
+            } else {
+              result.noSummaries.push(monthStr);
+            }
+          } catch (err) {
+            result.failed.push(monthStr);
+            result.errors.push(`${monthStr}: ${err.message}`);
+            if (onProgress) {
+              onProgress(`Failed ${monthStr}: ${err.message}`);
+            }
           }
         }
-      } else if (genResult.reason && genResult.reason.includes('no weekly summaries')) {
-        result.noSummaries.push(monthStr);
-        if (onProgress) {
-          onProgress(`Skipped ${monthStr}: no weekly summaries`);
-        }
-      } else if (genResult.reason && genResult.reason.includes('already exists')) {
-        result.alreadyExists.push(monthStr);
-        if (onProgress) {
-          onProgress(`Skipped ${monthStr}: monthly summary already exists`);
-        }
-      } else {
-        result.noSummaries.push(monthStr);
-      }
-    } catch (err) {
-      result.failed.push(monthStr);
-      result.errors.push(`${monthStr}: ${err.message}`);
-      if (onProgress) {
-        onProgress(`Failed ${monthStr}: ${err.message}`);
+
+        span.setAttribute(
+          'commit_story.summary.entry_count',
+          result.generated.length
+        );
+        span.setAttribute(
+          'commit_story.journal.errors_count',
+          result.errors.length
+        );
+
+        return result;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
       }
     }
-  }
-
-  return result;
+  );
 }
 
 /**

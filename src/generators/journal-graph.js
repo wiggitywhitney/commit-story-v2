@@ -10,6 +10,9 @@ import { summaryPrompt } from './prompts/sections/summary-prompt.js';
 import { dialoguePrompt } from './prompts/sections/dialogue-prompt.js';
 import { technicalDecisionsPrompt } from './prompts/sections/technical-decisions-prompt.js';
 import logger from '../logger.js';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Journal state definition using LangGraph Annotation API
@@ -27,8 +30,8 @@ export const JournalState = Annotation.Root({
   // Metadata
   errors: Annotation({
     reducer: (left, right) => [...(left || []), ...(right || [])],
-    default: () => [],
-  }),
+    default: () => []
+  })
 });
 
 /**
@@ -40,7 +43,7 @@ export const JournalState = Annotation.Root({
 const NODE_TEMPERATURES = {
   summary: 0.7,
   dialogue: 0.7,
-  technical: 0.1,
+  technical: 0.1
 };
 
 /**
@@ -61,7 +64,7 @@ export function getModel(temperature = 0) {
       new ChatAnthropic({
         model: 'claude-haiku-4-5-20251001',
         maxTokens: 2048,
-        temperature,
+        temperature
       })
     );
   }
@@ -88,7 +91,7 @@ function analyzeCommitContent(diff) {
       docFiles: [],
       functionalFiles: [],
       hasFunctionalCode: false,
-      hasOnlyDocs: false,
+      hasOnlyDocs: false
     };
   }
 
@@ -98,7 +101,9 @@ function analyzeCommitContent(diff) {
   const allFiles = [...new Set(matches.map((m) => m[1]))];
 
   // Filter out journal entries (prevent recursive pollution)
-  const changedFiles = allFiles.filter((f) => !f.startsWith('journal/entries/'));
+  const changedFiles = allFiles.filter(
+    (f) => !f.startsWith('journal/entries/')
+  );
 
   // Documentation file patterns
   const isDocFile = (file) => {
@@ -113,7 +118,7 @@ function analyzeCommitContent(diff) {
       /\.toml$/i,
       /\.ini$/i,
       /\.env/i,
-      /\.gitignore$/i,
+      /\.gitignore$/i
     ];
     return docPatterns.some((pattern) => pattern.test(file));
   };
@@ -126,7 +131,7 @@ function analyzeCommitContent(diff) {
     docFiles,
     functionalFiles,
     hasFunctionalCode: functionalFiles.length > 0,
-    hasOnlyDocs: docFiles.length > 0 && functionalFiles.length === 0,
+    hasOnlyDocs: docFiles.length > 0 && functionalFiles.length === 0
   };
 }
 
@@ -195,8 +200,8 @@ function formatSessionsForAI(sessions) {
       messages: messages.map((msg) => ({
         type: msg.type,
         content: msg.content,
-        timestamp: msg.timestamp,
-      })),
+        timestamp: msg.timestamp
+      }))
     });
   }
   return result;
@@ -216,7 +221,8 @@ function formatChatMessages(messages) {
     .map((msg) => {
       const type = msg.type === 'user' ? 'user' : 'assistant';
       const date = msg.timestamp ? new Date(msg.timestamp) : null;
-      const time = date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString() : '';
+      const time =
+        date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString() : '';
       return `{"type":"${type}", "time":"${time}", "content":"${escapeForJson(msg.content)}"}`;
     })
     .join('\n\n');
@@ -255,7 +261,7 @@ function formatContextForSummary(context) {
         userOnlySessions.push({
           session_id: `Session ${index}`,
           message_count: userMsgs.length,
-          messages: userMsgs.map((m) => ({ type: m.type, content: m.content })),
+          messages: userMsgs.map((m) => ({ type: m.type, content: m.content }))
         });
       }
     }
@@ -274,7 +280,7 @@ ${JSON.stringify(
     hash: context.commit.shortHash,
     author: context.commit.author,
     message: context.commit.message,
-    diff: context.commit.diff || 'No diff available',
+    diff: context.commit.diff || 'No diff available'
   },
   null,
   2
@@ -349,7 +355,8 @@ function cleanDialogueOutput(raw) {
   }
 
   const result = cleaned.join('\n').trim();
-  if (!result) return 'No significant dialogue found for this development session';
+  if (!result)
+    return 'No significant dialogue found for this development session';
   // Fix literal \n from JSON-escaped content that the model copied verbatim
   return result.replace(/\\n/g, '\n');
 }
@@ -369,7 +376,10 @@ function cleanTechnicalOutput(raw) {
     if (line.startsWith('**DECISION:') || line.startsWith('- **DECISION:')) {
       inDecision = true;
       cleaned.push(line);
-    } else if (inDecision && (line.match(/^\s+-/) || line.match(/^\s+Tradeoffs:/))) {
+    } else if (
+      inDecision &&
+      (line.match(/^\s+-/) || line.match(/^\s+Tradeoffs:/))
+    ) {
       // Sub-items of a decision (with any indentation)
       cleaned.push(line);
     } else if (inDecision && line.trim() === '') {
@@ -383,7 +393,10 @@ function cleanTechnicalOutput(raw) {
 
   const result = cleaned.join('\n').trim();
   // If no DECISION lines found, return default message instead of raw narrative
-  return result || 'No significant technical decisions documented for this development session';
+  return (
+    result ||
+    'No significant technical decisions documented for this development session'
+  );
 }
 
 /**
@@ -391,23 +404,38 @@ function cleanTechnicalOutput(raw) {
  * These words persist despite prompt instructions, so we handle them deterministically
  */
 const BANNED_WORD_REPLACEMENTS = [
-  [/\bcomprehensiv(e|ely)\b/gi, (_, suffix) => suffix === 'ely' ? 'thoroughly' : 'detailed'],
+  [
+    /\bcomprehensiv(e|ely)\b/gi,
+    (_, suffix) => (suffix === 'ely' ? 'thoroughly' : 'detailed')
+  ],
   [/\brobust\b/gi, 'solid'],
   [/\bsignificant\b/gi, 'important'],
-  [/\bsystematic(ally)?\b/gi, (_, suffix) => suffix ? 'carefully' : 'structured'],
-  [/\bmeticulous(ly)?\b/gi, (_, suffix) => suffix ? 'carefully' : 'careful'],
-  [/\bmethodical(ly)?\b/gi, (_, suffix) => suffix ? 'carefully' : 'careful'],
+  [
+    /\bsystematic(ally)?\b/gi,
+    (_, suffix) => (suffix ? 'carefully' : 'structured')
+  ],
+  [/\bmeticulous(ly)?\b/gi, (_, suffix) => (suffix ? 'carefully' : 'careful')],
+  [/\bmethodical(ly)?\b/gi, (_, suffix) => (suffix ? 'carefully' : 'careful')],
   [/\ba sophisticated\b/gi, 'an advanced'],
   [/\bsophisticated\b/gi, 'advanced'],
-  [/\bleverag(e[ds]?|ing)\b/gi, (_, suffix) => suffix === 'ing' ? 'using' : 'used'],
+  [
+    /\bleverag(e[ds]?|ing)\b/gi,
+    (_, suffix) => (suffix === 'ing' ? 'using' : 'used')
+  ],
   [/\benhance[ds]?\b/gi, 'improved'],
   [/\benhancing\b/gi, 'improving'],
-  [/\benhancements?\b/gi, (match) => match.endsWith('s') ? 'improvements' : 'improvement'],
-  [/\butiliz(e[ds]?|ing|ation)\b/gi, (_, suffix) => {
-    if (suffix === 'ing') return 'using';
-    if (suffix === 'ation') return 'use';
-    return 'used';
-  }],
+  [
+    /\benhancements?\b/gi,
+    (match) => (match.endsWith('s') ? 'improvements' : 'improvement')
+  ],
+  [
+    /\butiliz(e[ds]?|ing|ation)\b/gi,
+    (_, suffix) => {
+      if (suffix === 'ing') return 'using';
+      if (suffix === 'ation') return 'use';
+      return 'used';
+    }
+  ]
 ];
 
 function cleanSummaryOutput(raw) {
@@ -417,7 +445,10 @@ function cleanSummaryOutput(raw) {
     result = result.replace(pattern, replacement);
   }
   // Strip preamble lines like "Based on the git commit..." or "Here's a summary..."
-  result = result.replace(/^(Based on|Here's|Here is|Looking at|Let me)[^\n]*\n*/i, '');
+  result = result.replace(
+    /^(Based on|Here's|Here is|Looking at|Let me)[^\n]*\n*/i,
+    ''
+  );
   return result.trim();
 }
 
@@ -426,33 +457,51 @@ function cleanSummaryOutput(raw) {
  * Creates a narrative overview of the commit
  */
 async function summaryNode(state) {
-  try {
-    const { context } = state;
-    const guidelines = getAllGuidelines();
-    const hasFunctional = hasFunctionalCode(context.commit.diff);
-    // Use pre-computed stats from message filter instead of re-iterating
-    const hasChat = (context.metadata?.filterStats?.substantialUserMessages ?? 0) >= 2;
-    logger.info({ hasFunctional, hasChat }, 'Generating journal summary');
-    const sectionPrompt = summaryPrompt(hasFunctional, hasChat);
+  return tracer.startActiveSpan(
+    'commit_story.ai.generate_summary',
+    async (span) => {
+      span.setAttribute('commit_story.ai.section_type', 'summary');
+      span.setAttribute(
+        'gen_ai.request.temperature',
+        NODE_TEMPERATURES.summary
+      );
+      span.setAttribute('gen_ai.operation.name', 'chat');
+      try {
+        const { context } = state;
+        const guidelines = getAllGuidelines();
+        const hasFunctional = hasFunctionalCode(context.commit.diff);
+        // Use pre-computed stats from message filter instead of re-iterating
+        const hasChat =
+          (context.metadata?.filterStats?.substantialUserMessages ?? 0) >= 2;
+        logger.info({ hasFunctional, hasChat }, 'Generating journal summary');
+        const sectionPrompt = summaryPrompt(hasFunctional, hasChat);
 
-    const systemContent = `${guidelines}
+        const systemContent = `${guidelines}
 
 ${sectionPrompt}`;
 
-    const userContent = formatContextForSummary(context);
+        const userContent = formatContextForSummary(context);
 
-    const result = await getModel(NODE_TEMPERATURES.summary).invoke([
-      new SystemMessage(systemContent),
-      new HumanMessage(userContent),
-    ]);
+        const result = await getModel(NODE_TEMPERATURES.summary).invoke([
+          new SystemMessage(systemContent),
+          new HumanMessage(userContent)
+        ]);
 
-    return { summary: cleanSummaryOutput(result.content) };
-  } catch (error) {
-    return {
-      summary: '[Summary generation failed]',
-      errors: [`Summary generation failed: ${error.message}`],
-    };
-  }
+        if (result != null && result.id != null) {
+          span.setAttribute('gen_ai.response.id', result.id);
+        }
+
+        return { summary: cleanSummaryOutput(result.content) };
+      } catch (error) {
+        return {
+          summary: '[Summary generation failed]',
+          errors: [`Summary generation failed: ${error.message}`]
+        };
+      } finally {
+        span.end();
+      }
+    }
+  );
 }
 
 /**
@@ -462,43 +511,77 @@ ${sectionPrompt}`;
  * Early exit when no substantial user messages exist
  */
 async function technicalNode(state) {
-  try {
-    const { context } = state;
+  return tracer.startActiveSpan(
+    'commit_story.ai.generate_technical_decisions',
+    async (span) => {
+      try {
+        const { context } = state;
 
-    // Early exit: skip AI call when no substantial user messages (v1 pattern)
-    const substantialUserMessages = context.metadata?.filterStats?.substantialUserMessages ?? 0;
-    if (substantialUserMessages === 0) {
-      logger.info({ substantialUserMessages }, 'Skipping technical decisions: no substantial user messages');
-      return { technicalDecisions: 'No significant technical decisions documented for this development session' };
-    }
+        span.setAttribute(
+          'commit_story.ai.section_type',
+          'technical_decisions'
+        );
+        span.setAttribute('gen_ai.operation.name', 'chat');
+        span.setAttribute(
+          'gen_ai.request.temperature',
+          NODE_TEMPERATURES.technical
+        );
 
-    logger.info({ substantialUserMessages }, 'Generating technical decisions');
+        // Early exit: skip AI call when no substantial user messages (v1 pattern)
+        const substantialUserMessages =
+          context.metadata?.filterStats?.substantialUserMessages ?? 0;
+        span.setAttribute(
+          'commit_story.ai.substantial_messages_count',
+          substantialUserMessages
+        );
+        if (substantialUserMessages === 0) {
+          logger.info(
+            { substantialUserMessages },
+            'Skipping technical decisions: no substantial user messages'
+          );
+          return {
+            technicalDecisions:
+              'No significant technical decisions documented for this development session'
+          };
+        }
 
-    const guidelines = getAllGuidelines();
+        logger.info(
+          { substantialUserMessages },
+          'Generating technical decisions'
+        );
 
-    // Analyze diff to generate dynamic implementation guidance
-    const diffAnalysis = analyzeCommitContent(context.commit.diff);
-    const implementationGuidance = generateImplementationGuidance(diffAnalysis);
+        const guidelines = getAllGuidelines();
 
-    const systemContent = `${guidelines}
+        // Analyze diff to generate dynamic implementation guidance
+        const diffAnalysis = analyzeCommitContent(context.commit.diff);
+        const implementationGuidance =
+          generateImplementationGuidance(diffAnalysis);
+
+        const systemContent = `${guidelines}
 
 ${technicalDecisionsPrompt}
 ${implementationGuidance}`;
 
-    const userContent = formatContextForUser(context);
+        const userContent = formatContextForUser(context);
 
-    const result = await getModel(NODE_TEMPERATURES.technical).invoke([
-      new SystemMessage(systemContent),
-      new HumanMessage(userContent),
-    ]);
+        const result = await getModel(NODE_TEMPERATURES.technical).invoke([
+          new SystemMessage(systemContent),
+          new HumanMessage(userContent)
+        ]);
 
-    return { technicalDecisions: cleanTechnicalOutput(result.content.trim()) };
-  } catch (error) {
-    return {
-      technicalDecisions: '[Technical decisions extraction failed]',
-      errors: [`Technical decisions extraction failed: ${error.message}`],
-    };
-  }
+        return {
+          technicalDecisions: cleanTechnicalOutput(result.content.trim())
+        };
+      } catch (error) {
+        return {
+          technicalDecisions: '[Technical decisions extraction failed]',
+          errors: [`Technical decisions extraction failed: ${error.message}`]
+        };
+      } finally {
+        span.end();
+      }
+    }
+  );
 }
 
 /**
@@ -509,46 +592,81 @@ ${implementationGuidance}`;
  * Early exit when no substantial user messages; dynamic maxQuotes
  */
 async function dialogueNode(state) {
-  try {
-    const { context, summary } = state;
+  return tracer.startActiveSpan(
+    'commit_story.ai.generate_dialogue',
+    async (span) => {
+      span.setAttribute('commit_story.ai.section_type', 'dialogue');
+      span.setAttribute(
+        'gen_ai.request.temperature',
+        NODE_TEMPERATURES.dialogue
+      );
+      try {
+        const { context, summary } = state;
 
-    // Early exit: skip AI call when no substantial user messages (v1 pattern)
-    const substantialUserMessages = context.metadata?.filterStats?.substantialUserMessages ?? 0;
-    if (substantialUserMessages === 0) {
-      logger.info({ substantialUserMessages }, 'Skipping dialogue: no substantial user messages');
-      return { dialogue: 'No significant dialogue found for this development session' };
-    }
+        // Early exit: skip AI call when no substantial user messages (v1 pattern)
+        const substantialUserMessages =
+          context.metadata?.filterStats?.substantialUserMessages ?? 0;
+        span.setAttribute(
+          'commit_story.ai.substantial_messages_count',
+          substantialUserMessages
+        );
+        if (substantialUserMessages === 0) {
+          logger.info(
+            { substantialUserMessages },
+            'Skipping dialogue: no substantial user messages'
+          );
+          return {
+            dialogue:
+              'No significant dialogue found for this development session'
+          };
+        }
 
-    const guidelines = getAllGuidelines();
+        const guidelines = getAllGuidelines();
 
-    // Dynamic maxQuotes: 8% of substantial user messages + 1 (v1 formula)
-    const maxQuotes = Math.min(Math.ceil(substantialUserMessages * 0.08) + 1, 15);
-    logger.info({ substantialUserMessages, maxQuotes }, 'Generating dialogue');
+        // Dynamic maxQuotes: 8% of substantial user messages + 1 (v1 formula)
+        const maxQuotes = Math.min(
+          Math.ceil(substantialUserMessages * 0.08) + 1,
+          15
+        );
+        span.setAttribute('commit_story.ai.max_quotes', maxQuotes);
+        logger.info(
+          { substantialUserMessages, maxQuotes },
+          'Generating dialogue'
+        );
 
-    // Replace {maxQuotes} placeholder in prompt
-    const sectionPrompt = dialoguePrompt.replace(/{maxQuotes}/g, String(maxQuotes));
+        // Replace {maxQuotes} placeholder in prompt
+        const sectionPrompt = dialoguePrompt.replace(
+          /{maxQuotes}/g,
+          String(maxQuotes)
+        );
 
-    const systemContent = `${guidelines}
+        const systemContent = `${guidelines}
 
 The summary of this development session is:
 ${summary}
 
 ${sectionPrompt}`;
 
-    const userContent = formatContextForUser(context, { includeSummary: false });
+        const userContent = formatContextForUser(context, {
+          includeSummary: false
+        });
 
-    const result = await getModel(NODE_TEMPERATURES.dialogue).invoke([
-      new SystemMessage(systemContent),
-      new HumanMessage(userContent),
-    ]);
+        const result = await getModel(NODE_TEMPERATURES.dialogue).invoke([
+          new SystemMessage(systemContent),
+          new HumanMessage(userContent)
+        ]);
 
-    return { dialogue: cleanDialogueOutput(result.content.trim()) };
-  } catch (error) {
-    return {
-      dialogue: '[Dialogue extraction failed]',
-      errors: [`Dialogue extraction failed: ${error.message}`],
-    };
-  }
+        return { dialogue: cleanDialogueOutput(result.content.trim()) };
+      } catch (error) {
+        return {
+          dialogue: '[Dialogue extraction failed]',
+          errors: [`Dialogue extraction failed: ${error.message}`]
+        };
+      } finally {
+        span.end();
+      }
+    }
+  );
 }
 
 /**
@@ -593,18 +711,43 @@ function getGraph() {
  * @returns {Promise<JournalSections>} Generated journal sections
  */
 export async function generateJournalSections(context) {
-  logger.info({ commitHash: context?.commit?.shortHash }, 'Generating journal sections');
-  const graph = getGraph();
+  return tracer.startActiveSpan(
+    'commit_story.ai.generate_journal_sections',
+    async (span) => {
+      try {
+        span.setAttribute(
+          'vcs.ref.head.revision',
+          context?.commit?.shortHash ?? ''
+        );
+        logger.info(
+          { commitHash: context?.commit?.shortHash },
+          'Generating journal sections'
+        );
+        const graph = getGraph();
 
-  const result = await graph.invoke({ context });
+        const result = await graph.invoke({ context });
 
-  return {
-    summary: result.summary || '',
-    dialogue: result.dialogue || '',
-    technicalDecisions: result.technicalDecisions || '',
-    errors: result.errors || [],
-    generatedAt: new Date(),
-  };
+        span.setAttribute(
+          'commit_story.journal.errors_count',
+          result.errors?.length ?? 0
+        );
+
+        return {
+          summary: result.summary || '',
+          dialogue: result.dialogue || '',
+          technicalDecisions: result.technicalDecisions || '',
+          errors: result.errors || [],
+          generatedAt: new Date()
+        };
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    }
+  );
 }
 
 // Export node functions and helpers for testing
@@ -624,5 +767,5 @@ export {
   cleanTechnicalOutput,
   cleanSummaryOutput,
   escapeForJson,
-  NODE_TEMPERATURES,
+  NODE_TEMPERATURES
 };
