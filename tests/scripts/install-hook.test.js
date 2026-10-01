@@ -105,6 +105,78 @@ describe('install-hook.sh', () => {
     expect(hookContent).toContain(`${stripPrefix} npx commit-story`);
   });
 
+  describe('secret injection at runtime', () => {
+    const git = (cwd, ...args) =>
+      execFileSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd, stdio: 'pipe' });
+
+    // Runs the generated hook and waits for the background subshell to write the marker file.
+    const runHook = (cwd, env = {}) => {
+      const marker = join(cwd, 'hook-ran.txt');
+      execFileSync('bash', [hookFor(cwd)], {
+        cwd,
+        stdio: 'pipe',
+        env: { ...process.env, ...env },
+      });
+      for (let i = 0; i < 100 && !existsSync(marker); i++) execFileSync('sleep', ['0.1']);
+      return existsSync(marker) ? readFileSync(marker, 'utf-8') : null;
+    };
+
+    // Worktrees share the hook with the main checkout, so resolve it from the common git dir.
+    const hookFor = (cwd) =>
+      join(execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd }).toString().trim().replace(/^\.git$/, join(cwd, '.git')), 'hooks', 'post-commit');
+
+    const writeFakePackage = () => {
+      fakePackageDir = mkdtempSync(join(tmpdir(), 'fake-commit-story-'));
+      mkdirSync(join(fakePackageDir, 'src'));
+      writeFileSync(join(fakePackageDir, 'package.json'), '{"name":"fake-not-commit-story","type":"module"}');
+      writeFileSync(
+        join(fakePackageDir, 'src', 'index.js'),
+        "import { writeFileSync } from 'node:fs';\nwriteFileSync('hook-ran.txt', process.env.ANTHROPIC_API_KEY ?? 'missing');\n"
+      );
+    };
+
+    it('injects secrets from the main checkout when the hook runs in a linked worktree', () => {
+      writeFakePackage();
+      mkdirSync(join(tmpDir, 'node_modules'));
+      symlinkSync(fakePackageDir, join(tmpDir, 'node_modules', 'commit-story'));
+      writeFileSync(join(tmpDir, '.vals.yaml'), 'ANTHROPIC_API_KEY: ref+echo://worktree-test-key\n');
+      execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
+      git(tmpDir, 'commit', '--allow-empty', '-m', 'init');
+      const worktreeDir = `${tmpDir}-worktree`;
+      git(tmpDir, 'worktree', 'add', '-q', worktreeDir, '-b', 'wt-branch');
+
+      try {
+        expect(runHook(worktreeDir)).toBe('worktree-test-key');
+      } finally {
+        rmSync(worktreeDir, { recursive: true, force: true });
+      }
+    });
+
+    it('injects secrets from the repo root in a normal checkout', () => {
+      writeFakePackage();
+      mkdirSync(join(tmpDir, 'node_modules'));
+      symlinkSync(fakePackageDir, join(tmpDir, 'node_modules', 'commit-story'));
+      writeFileSync(join(tmpDir, '.vals.yaml'), 'ANTHROPIC_API_KEY: ref+echo://checkout-test-key\n');
+      execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
+
+      expect(runHook(tmpDir)).toBe('checkout-test-key');
+    });
+
+    it('injects secrets on the npx path when no package directory is found', () => {
+      writeFileSync(join(tmpDir, '.vals.yaml'), 'ANTHROPIC_API_KEY: ref+echo://fallback-test-key\n');
+      execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
+      // Stand-in for npx so the test does not touch the network or a globally linked package.
+      const binDir = mkdtempSync(join(tmpdir(), 'fake-bin-'));
+      writeFileSync(join(binDir, 'npx'), '#!/bin/bash\nprintf "%s" "${ANTHROPIC_API_KEY:-missing}" > hook-ran.txt\n', { mode: 0o755 });
+
+      try {
+        expect(runHook(tmpDir, { PATH: `${binDir}:${process.env.PATH}` })).toBe('fallback-test-key');
+      } finally {
+        rmSync(binDir, { recursive: true, force: true });
+      }
+    });
+  });
+
   it('makes hook executable', () => {
     execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
 
