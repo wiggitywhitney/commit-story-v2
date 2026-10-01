@@ -1,11 +1,36 @@
 // ABOUTME: Tests for install-hook.sh — verifies post-commit hook generation with runtime discovery
 // ABOUTME: Covers package discovery, OTel instrumentation, vals integration, and edge cases
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, existsSync, statSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+
+// Git sets these when it runs a hook (pre-push runs the test suite), and in a linked worktree.
+// Inherited, they point the temporary repos these tests create at the real repository.
+const REPO_LOCATING_GIT_VARS = [
+  'GIT_DIR',
+  'GIT_WORK_TREE',
+  'GIT_INDEX_FILE',
+  'GIT_PREFIX',
+  'GIT_COMMON_DIR',
+  'GIT_OBJECT_DIRECTORY',
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_NAMESPACE',
+];
+const savedGitEnv = {};
+
+beforeAll(() => {
+  for (const name of REPO_LOCATING_GIT_VARS) {
+    if (name in process.env) savedGitEnv[name] = process.env[name];
+    delete process.env[name];
+  }
+});
+
+afterAll(() => {
+  Object.assign(process.env, savedGitEnv);
+});
 
 const INSTALL_SCRIPT = join(process.cwd(), 'scripts', 'install-hook.sh');
 const UNINSTALL_SCRIPT = join(process.cwd(), 'scripts', 'uninstall-hook.sh');
