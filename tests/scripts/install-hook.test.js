@@ -167,10 +167,15 @@ describe('install-hook.sh', () => {
       execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
       // Stand-in for npx so the test does not touch the network or a globally linked package.
       const binDir = mkdtempSync(join(tmpdir(), 'fake-bin-'));
-      writeFileSync(join(binDir, 'npx'), '#!/bin/bash\nprintf "%s" "${ANTHROPIC_API_KEY:-missing}" > hook-ran.txt\n', { mode: 0o755 });
+      // Records the key and whether node is reachable, because a real npx needs node on PATH.
+      writeFileSync(
+        join(binDir, 'npx'),
+        '#!/bin/bash\nprintf "%s|%s" "${ANTHROPIC_API_KEY:-missing}" "$(command -v node >/dev/null 2>&1 && echo node-found || echo node-missing)" > hook-ran.txt\n',
+        { mode: 0o755 }
+      );
 
       try {
-        expect(runHook(tmpDir, { PATH: `${binDir}:${process.env.PATH}` })).toBe('fallback-test-key');
+        expect(runHook(tmpDir, { PATH: `${binDir}:${process.env.PATH}` })).toBe('fallback-test-key|node-found');
       } finally {
         rmSync(binDir, { recursive: true, force: true });
       }

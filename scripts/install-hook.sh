@@ -109,7 +109,8 @@ find_package_dir() {
     # leak and to a missing API key (see the comment above the vals/node invocations for
     # the full explanation).
     if [[ -f "$VALS_FILE" ]] && command -v vals >/dev/null 2>&1; then
-      env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL vals exec -f "$VALS_FILE" -- npx commit-story
+      # -i inherits PATH: npx is a `#!/usr/bin/env node` script and needs node on PATH
+      env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL vals exec -i -f "$VALS_FILE" -- npx commit-story
     else
       env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL npx commit-story
     fi

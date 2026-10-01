@@ -30,6 +30,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The hook tests run the real vals binary, so CI needs it. The version matches local dev.
+      - name: Install vals
+        run: |
+          VALS_VERSION=0.43.6
+          BASE="https://github.com/helmfile/vals/releases/download/v${VALS_VERSION}"
+          curl -fsSL -o vals.tar.gz "${BASE}/vals_${VALS_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o vals_checksums.txt "${BASE}/vals_${VALS_VERSION}_checksums.txt"
+          grep " vals_${VALS_VERSION}_linux_amd64.tar.gz$" vals_checksums.txt | sed "s/vals_${VALS_VERSION}_linux_amd64.tar.gz/vals.tar.gz/" | sha256sum -c -
+          sudo tar -xzf vals.tar.gz -C /usr/local/bin vals
+          rm vals.tar.gz vals_checksums.txt
+          vals version
+
       - name: Run tests with coverage
         run: npm run test:coverage
 
