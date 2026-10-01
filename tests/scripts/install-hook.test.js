@@ -140,7 +140,7 @@ describe('install-hook.sh', () => {
       execFileSync('bash', [hookFor(cwd)], {
         cwd,
         stdio: 'pipe',
-        env: { ...process.env, ...env },
+        env: { ...process.env, PATH: `/tmp/commit-story-path-marker:${process.env.PATH}`, ...env },
       });
       for (let i = 0; i < 100 && !existsSync(marker); i++) execFileSync('sleep', ['0.1']);
       return existsSync(marker) ? readFileSync(marker, 'utf-8') : null;
@@ -156,7 +156,7 @@ describe('install-hook.sh', () => {
       writeFileSync(join(fakePackageDir, 'package.json'), '{"name":"fake-not-commit-story","type":"module"}');
       writeFileSync(
         join(fakePackageDir, 'src', 'index.js'),
-        "import { writeFileSync } from 'node:fs';\nwriteFileSync('hook-ran.txt', process.env.ANTHROPIC_API_KEY ?? 'missing');\n"
+        "import { writeFileSync } from 'node:fs';\nwriteFileSync('hook-ran.txt', `${process.env.ANTHROPIC_API_KEY ?? 'missing'}|${(process.env.PATH ?? '').includes('commit-story-path-marker') ? 'path-kept' : 'path-lost'}`);\n"
       );
     };
 
@@ -171,7 +171,7 @@ describe('install-hook.sh', () => {
       git(tmpDir, 'worktree', 'add', '-q', worktreeDir, '-b', 'wt-branch');
 
       try {
-        expect(runHook(worktreeDir)).toBe('worktree-test-key');
+        expect(runHook(worktreeDir)).toBe('worktree-test-key|path-kept');
       } finally {
         rmSync(worktreeDir, { recursive: true, force: true });
       }
@@ -184,7 +184,7 @@ describe('install-hook.sh', () => {
       writeFileSync(join(tmpDir, '.vals.yaml'), 'ANTHROPIC_API_KEY: ref+echo://checkout-test-key\n');
       execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
 
-      expect(runHook(tmpDir)).toBe('checkout-test-key');
+      expect(runHook(tmpDir)).toBe('checkout-test-key|path-kept');
     });
 
     it('injects secrets on the npx path when no package directory is found', () => {

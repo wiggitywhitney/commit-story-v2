@@ -134,7 +134,7 @@ find_package_dir() {
   # headers. The hook still exits 0, so the failure is silent — journal entries are saved
   # with "[... generation failed]" placeholder text instead of real content.
   if [[ -f "$VALS_FILE" ]] && command -v vals >/dev/null 2>&1; then
-    env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL vals exec -f "$VALS_FILE" -- node "${NODE_ARGS[@]}"
+    env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL vals exec -i -f "$VALS_FILE" -- node "${NODE_ARGS[@]}"
   else
     env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL node "${NODE_ARGS[@]}"
   fi
