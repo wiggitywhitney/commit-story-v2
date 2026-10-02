@@ -316,3 +316,18 @@ groups:
     stability: development
     brief: "Agent-discovered span: commit_story.summary.find_unsummarized_months"
     span_kind: internal
+  - id: span.commit_story.summary.trigger_auto_daily
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.trigger_auto_daily"
+    span_kind: internal
+  - id: span.commit_story.summary.trigger_auto_weekly
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.trigger_auto_weekly"
+    span_kind: internal
+  - id: span.commit_story.summary.trigger_auto_monthly
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.summary.trigger_auto_monthly"
+    span_kind: internal
