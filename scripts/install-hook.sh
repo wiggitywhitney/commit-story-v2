@@ -43,12 +43,24 @@ resolve_path() {
   fi
 }
 
+# Root of the main checkout. In a linked worktree, untracked files such as node_modules
+# and .vals.yaml live in the main checkout, not in the worktree root. In a normal
+# checkout this is the same directory as the repo root.
+find_main_root() {
+  local repo_root common_dir
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return
+  common_dir="$(cd "$repo_root" && cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)" || return
+  (cd "$common_dir/.." && pwd -P)
+}
+
 # Discover the commit-story package directory at runtime by checking:
 # 1. Local repo (development mode — this IS the commit-story repo)
-# 2. npm link symlink (dev dependency linked to the real repo)
+# 2. npm link symlink (dev dependency linked to the real repo), in the repo root and then
+#    in the main checkout when running from a linked worktree
 find_package_dir() {
-  local repo_root
+  local repo_root main_root
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return
+  main_root="$(find_main_root)"
 
   # Check if this IS the commit-story repo (has src/index.js and package.json with commit-story name)
   if [[ -f "$repo_root/src/index.js" ]] && grep -q '"name"[[:space:]]*:[[:space:]]*"commit-story"' "$repo_root/package.json" 2>/dev/null; then
@@ -56,31 +68,52 @@ find_package_dir() {
     return
   fi
 
-  # Follow npm link symlink to the real package
-  local pkg_link="$repo_root/node_modules/commit-story"
-  if [[ -L "$pkg_link" ]]; then
-    resolve_path "$pkg_link"
-    return
-  fi
+  local root pkg_link
+  for root in "$repo_root" "$main_root"; do
+    [[ -n "$root" ]] || continue
+    pkg_link="$root/node_modules/commit-story"
 
-  # Installed as a regular dependency
-  if [[ -d "$pkg_link" ]]; then
-    echo "$pkg_link"
-    return
-  fi
+    # Follow npm link symlink to the real package
+    if [[ -L "$pkg_link" ]]; then
+      resolve_path "$pkg_link"
+      return
+    fi
+
+    # Installed as a regular dependency
+    if [[ -d "$pkg_link" ]]; then
+      echo "$pkg_link"
+      return
+    fi
+  done
 }
 
 # Run in background to not block git
 (
   PKG_DIR="$(find_package_dir)"
 
+  # Secrets file: the repo root's .vals.yaml, or the main checkout's when running in a
+  # linked worktree (a fresh worktree has no copy of the gitignored file).
+  REPO_ROOT="$(git rev-parse --show-toplevel)"
+  VALS_FILE="$REPO_ROOT/.vals.yaml"
+  if [[ ! -f "$VALS_FILE" ]]; then
+    MAIN_ROOT="$(find_main_root)"
+    [[ -n "$MAIN_ROOT" && -f "$MAIN_ROOT/.vals.yaml" ]] && VALS_FILE="$MAIN_ROOT/.vals.yaml"
+  fi
+
   if [[ -z "$PKG_DIR" || ! -f "$PKG_DIR/src/index.js" ]]; then
-    # Fallback: try npx (may resolve to an older published version)
+    # Fallback: try npx (may resolve to an older published version, or to a globally
+    # linked commit-story)
     #
-    # Strip gateway env vars here too — this path runs a real Anthropic SDK call same as
-    # the branches below, and is just as vulnerable to the silent gateway leak (see comment
-    # above the vals/node invocations for the full explanation).
-    env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL npx commit-story
+    # Strip gateway env vars and inject secrets here too — this path runs a real Anthropic
+    # SDK call same as the branches below, and is just as vulnerable to the silent gateway
+    # leak and to a missing API key (see the comment above the vals/node invocations for
+    # the full explanation).
+    if [[ -f "$VALS_FILE" ]] && command -v vals >/dev/null 2>&1; then
+      # -i inherits PATH: npx is a `#!/usr/bin/env node` script and needs node on PATH
+      env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL vals exec -i -f "$VALS_FILE" -- npx commit-story
+    else
+      env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL npx commit-story
+    fi
     exit
   fi
 
@@ -100,9 +133,8 @@ find_package_dir() {
   # sending commit-story's own Anthropic SDK calls to the gateway URL without valid gateway
   # headers. The hook still exits 0, so the failure is silent — journal entries are saved
   # with "[... generation failed]" placeholder text instead of real content.
-  REPO_ROOT="$(git rev-parse --show-toplevel)"
-  if [[ -f "$REPO_ROOT/.vals.yaml" ]] && command -v vals >/dev/null 2>&1; then
-    env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL vals exec -f "$REPO_ROOT/.vals.yaml" -- node "${NODE_ARGS[@]}"
+  if [[ -f "$VALS_FILE" ]] && command -v vals >/dev/null 2>&1; then
+    env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL vals exec -i -f "$VALS_FILE" -- node "${NODE_ARGS[@]}"
   else
     env -u ANTHROPIC_CUSTOM_HEADERS -u ANTHROPIC_BASE_URL node "${NODE_ARGS[@]}"
   fi
