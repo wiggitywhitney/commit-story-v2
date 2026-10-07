@@ -1,56 +1,49 @@
 // ABOUTME: Tests for traceloop auto-instrumentation initialization (src/traceloop-init.js)
-// ABOUTME: Verifies LangChain and MCP instrumentations register when COMMIT_STORY_TRACELOOP=true
+// ABOUTME: Runs the real LangChain instrumentation and verifies it activates only when COMMIT_STORY_TRACELOOP=true
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { LangChainInstrumentation } from '@traceloop/instrumentation-langchain';
+import { McpInstrumentation } from '@traceloop/instrumentation-mcp';
+import * as callbackManagerModule from '@langchain/core/callbacks/manager';
 
-const mockLangChainRegister = vi.fn();
-const mockMcpRegister = vi.fn();
-
-vi.mock('@traceloop/instrumentation-langchain', () => ({
-  LangChainInstrumentation: class MockLangChainInstrumentation {
-    manuallyInstrument() { mockLangChainRegister(); }
-  },
-}));
-
-vi.mock('@traceloop/instrumentation-mcp', () => ({
-  McpInstrumentation: class MockMcpInstrumentation {
-    manuallyInstrument() { mockMcpRegister(); }
-  },
-}));
+let langChainSpy;
+let mcpSpy;
 
 beforeEach(() => {
-  mockLangChainRegister.mockClear();
-  mockMcpRegister.mockClear();
+  delete process.env.COMMIT_STORY_TRACELOOP;
+  langChainSpy = vi.spyOn(LangChainInstrumentation.prototype, 'manuallyInstrument');
+  mcpSpy = vi.spyOn(McpInstrumentation.prototype, 'manuallyInstrument');
   vi.resetModules();
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete process.env.COMMIT_STORY_TRACELOOP;
+});
+
 describe('traceloop-init', () => {
-  it('registers LangChain instrumentation when COMMIT_STORY_TRACELOOP is true', async () => {
+  it('activates LangChain instrumentation with the callback manager module when COMMIT_STORY_TRACELOOP is true', async () => {
     process.env.COMMIT_STORY_TRACELOOP = 'true';
     await import('../src/traceloop-init.js');
-    expect(mockLangChainRegister).toHaveBeenCalled();
-    delete process.env.COMMIT_STORY_TRACELOOP;
+    expect(langChainSpy).toHaveBeenCalledTimes(1);
+    const [arg] = langChainSpy.mock.calls[0];
+    expect(arg.callbackManagerModule.CallbackManager).toBe(callbackManagerModule.CallbackManager);
   });
 
-  it('registers MCP instrumentation when COMMIT_STORY_TRACELOOP is true', async () => {
+  it('does not activate MCP instrumentation, because the CLI never uses the MCP SDK', async () => {
     process.env.COMMIT_STORY_TRACELOOP = 'true';
     await import('../src/traceloop-init.js');
-    expect(mockMcpRegister).toHaveBeenCalled();
-    delete process.env.COMMIT_STORY_TRACELOOP;
+    expect(mcpSpy).not.toHaveBeenCalled();
   });
 
-  it('does not register instrumentations when COMMIT_STORY_TRACELOOP is unset', async () => {
-    delete process.env.COMMIT_STORY_TRACELOOP;
+  it('does not activate instrumentation when COMMIT_STORY_TRACELOOP is unset', async () => {
     await import('../src/traceloop-init.js');
-    expect(mockLangChainRegister).not.toHaveBeenCalled();
-    expect(mockMcpRegister).not.toHaveBeenCalled();
+    expect(langChainSpy).not.toHaveBeenCalled();
   });
 
-  it('does not register instrumentations when COMMIT_STORY_TRACELOOP is false', async () => {
+  it('does not activate instrumentation when COMMIT_STORY_TRACELOOP is false', async () => {
     process.env.COMMIT_STORY_TRACELOOP = 'false';
     await import('../src/traceloop-init.js');
-    expect(mockLangChainRegister).not.toHaveBeenCalled();
-    expect(mockMcpRegister).not.toHaveBeenCalled();
-    delete process.env.COMMIT_STORY_TRACELOOP;
+    expect(langChainSpy).not.toHaveBeenCalled();
   });
 });
