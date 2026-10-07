@@ -156,7 +156,7 @@ describe('install-hook.sh', () => {
       writeFileSync(join(fakePackageDir, 'package.json'), '{"name":"fake-not-commit-story","type":"module"}');
       writeFileSync(
         join(fakePackageDir, 'src', 'index.js'),
-        "import { writeFileSync } from 'node:fs';\nwriteFileSync('hook-ran.txt', `${process.env.ANTHROPIC_API_KEY ?? 'missing'}|${(process.env.PATH ?? '').includes('commit-story-path-marker') ? 'path-kept' : 'path-lost'}`);\n"
+        "import { writeFileSync } from 'node:fs';\nwriteFileSync('hook-ran.txt', `${process.env.ANTHROPIC_API_KEY ?? 'missing'}|${(process.env.PATH ?? '').includes('commit-story-path-marker') ? 'path-kept' : 'path-lost'}|${process.env.COMMIT_STORY_TRACELOOP ?? 'traceloop-unset'}`);\n"
       );
     };
 
@@ -171,7 +171,7 @@ describe('install-hook.sh', () => {
       git(tmpDir, 'worktree', 'add', '-q', worktreeDir, '-b', 'wt-branch');
 
       try {
-        expect(runHook(worktreeDir)).toBe('worktree-test-key|path-kept');
+        expect(runHook(worktreeDir)).toBe('worktree-test-key|path-kept|traceloop-unset');
       } finally {
         rmSync(worktreeDir, { recursive: true, force: true });
       }
@@ -184,7 +184,17 @@ describe('install-hook.sh', () => {
       writeFileSync(join(tmpDir, '.vals.yaml'), 'ANTHROPIC_API_KEY: ref+echo://checkout-test-key\n');
       execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
 
-      expect(runHook(tmpDir)).toBe('checkout-test-key|path-kept');
+      expect(runHook(tmpDir)).toBe('checkout-test-key|path-kept|traceloop-unset');
+    });
+
+    it('passes COMMIT_STORY_TRACELOOP from the caller through to node', () => {
+      writeFakePackage();
+      mkdirSync(join(tmpDir, 'node_modules'));
+      symlinkSync(fakePackageDir, join(tmpDir, 'node_modules', 'commit-story'));
+      writeFileSync(join(tmpDir, '.vals.yaml'), 'ANTHROPIC_API_KEY: ref+echo://traceloop-test-key\n');
+      execFileSync('bash', [INSTALL_SCRIPT], { cwd: tmpDir, stdio: 'pipe' });
+
+      expect(runHook(tmpDir, { COMMIT_STORY_TRACELOOP: 'true' })).toBe('traceloop-test-key|path-kept|true');
     });
 
     it('injects secrets on the npx path when no package directory is found', () => {
