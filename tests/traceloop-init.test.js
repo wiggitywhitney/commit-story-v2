@@ -10,6 +10,7 @@ let langChainSpy;
 let mcpSpy;
 
 beforeEach(() => {
+  delete process.env.COMMIT_STORY_TRACELOOP;
   langChainSpy = vi.spyOn(LangChainInstrumentation.prototype, 'manuallyInstrument');
   mcpSpy = vi.spyOn(McpInstrumentation.prototype, 'manuallyInstrument');
   vi.resetModules();

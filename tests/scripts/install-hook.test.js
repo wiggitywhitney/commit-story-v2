@@ -137,10 +137,12 @@ describe('install-hook.sh', () => {
     // Runs the generated hook and waits for the background subshell to write the marker file.
     const runHook = (cwd, env = {}) => {
       const marker = join(cwd, 'hook-ran.txt');
+      // Drop any COMMIT_STORY_TRACELOOP from the runner so only an explicit override reaches the hook.
+      const { COMMIT_STORY_TRACELOOP: _inherited, ...baseEnv } = process.env;
       execFileSync('bash', [hookFor(cwd)], {
         cwd,
         stdio: 'pipe',
-        env: { ...process.env, PATH: `/tmp/commit-story-path-marker:${process.env.PATH}`, ...env },
+        env: { ...baseEnv, PATH: `/tmp/commit-story-path-marker:${process.env.PATH}`, ...env },
       });
       for (let i = 0; i < 100 && !existsSync(marker); i++) execFileSync('sleep', ['0.1']);
       return existsSync(marker) ? readFileSync(marker, 'utf-8') : null;
