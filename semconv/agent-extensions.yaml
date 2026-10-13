@@ -60,6 +60,10 @@ groups:
         type: int
         stability: development
         brief: "Agent-discovered attribute: commit_story.summarize.dates_count"
+      - id: commit_story.summarize.before_date
+        type: string
+        stability: development
+        brief: "Agent-discovered attribute: commit_story.summarize.before_date"
   - id: span.commit_story.context.collect_chat_messages
     type: span
     stability: development
@@ -187,4 +191,29 @@ groups:
     type: span
     stability: development
     brief: "Agent-discovered span: commit_story.summarize.run_monthly"
+    span_kind: internal
+  - id: span.commit_story.journal.get_days_with_entries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.get_days_with_entries"
+    span_kind: internal
+  - id: span.commit_story.journal.find_unsummarized_days
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.find_unsummarized_days"
+    span_kind: internal
+  - id: span.commit_story.journal.get_days_with_daily_summaries
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.get_days_with_daily_summaries"
+    span_kind: internal
+  - id: span.commit_story.journal.find_unsummarized_weeks
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.find_unsummarized_weeks"
+    span_kind: internal
+  - id: span.commit_story.journal.find_unsummarized_months
+    type: span
+    stability: development
+    brief: "Agent-discovered span: commit_story.journal.find_unsummarized_months"
     span_kind: internal
