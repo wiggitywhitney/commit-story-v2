@@ -22,11 +22,14 @@
  *   }
  */
 
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerReflectionTool } from './tools/reflection-tool.js';
 import { registerContextCaptureTool } from './tools/context-capture-tool.js';
 import pino from 'pino';
+
+const tracer = trace.getTracer('commit-story');
 
 // stdout is reserved for JSON-RPC — logger must write to stderr
 const logger = pino({ level: 'info' }, process.stderr);
@@ -52,12 +55,24 @@ function createServer() {
  * Main entry point
  */
 async function main() {
-  const server = createServer();
-  const transport = new StdioServerTransport();
+  return tracer.startActiveSpan('commit_story.mcp.start_server', async (span) => {
+    try {
+      span.setAttribute('commit_story.context.source', 'mcp');
+      span.setAttribute('commit_story.mcp.transport', 'stdio');
+      const server = createServer();
+      const transport = new StdioServerTransport();
 
-  await server.connect(transport);
+      await server.connect(transport);
 
-  logger.info('Commit Story MCP Server running on stdio');
+      logger.info('Commit Story MCP Server running on stdio');
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 // Run the server
