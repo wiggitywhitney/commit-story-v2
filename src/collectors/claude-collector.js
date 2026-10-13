@@ -5,9 +5,12 @@
  * Filters by repository path and time window, groups by session.
  */
 
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Get the Claude projects directory path
@@ -187,43 +190,66 @@ export function groupBySession(messages) {
  * @returns {Promise<ChatData>} Collected chat data
  */
 export async function collectChatMessages(repoPath, commitTime, previousCommitTime) {
-  const projectPath = getClaudeProjectPath(repoPath);
+  return tracer.startActiveSpan('commit_story.context.collect_chat_messages', async (span) => {
+    try {
+      span.setAttribute('commit_story.context.source', 'claude_code');
+      if (previousCommitTime != null) {
+        span.setAttribute('commit_story.context.time_window_start', new Date(previousCommitTime).toISOString());
+      }
+      if (commitTime != null) {
+        span.setAttribute('commit_story.context.time_window_end', new Date(commitTime).toISOString());
+      }
+      const projectPath = getClaudeProjectPath(repoPath);
 
-  if (!projectPath) {
-    return {
-      messages: [],
-      sessions: new Map(),
-      sessionCount: 0,
-      messageCount: 0,
-      timeWindow: {
-        start: previousCommitTime,
-        end: commitTime,
-      },
-    };
-  }
+      if (!projectPath) {
+        span.setAttribute('commit_story.context.sessions_count', 0);
+        span.setAttribute('commit_story.context.messages_count', 0);
+        return {
+          messages: [],
+          sessions: new Map(),
+          sessionCount: 0,
+          messageCount: 0,
+          timeWindow: {
+            start: previousCommitTime,
+            end: commitTime,
+          },
+        };
+      }
 
-  const jsonlFiles = findJSONLFiles(projectPath);
-  let allMessages = [];
+      const jsonlFiles = findJSONLFiles(projectPath);
+      span.setAttribute('commit_story.context.files_count', jsonlFiles.length);
+      let allMessages = [];
 
-  for (const filePath of jsonlFiles) {
-    const fileMessages = parseJSONLFile(filePath);
-    const filtered = filterMessages(fileMessages, repoPath, previousCommitTime, commitTime);
-    allMessages = allMessages.concat(filtered);
-  }
+      for (const filePath of jsonlFiles) {
+        const fileMessages = parseJSONLFile(filePath);
+        const filtered = filterMessages(fileMessages, repoPath, previousCommitTime, commitTime);
+        allMessages = allMessages.concat(filtered);
+      }
 
-  // Sort all messages chronologically
-  allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      // Sort all messages chronologically
+      allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-  const sessions = groupBySession(allMessages);
+      const sessions = groupBySession(allMessages);
 
-  return {
-    messages: allMessages,
-    sessions,
-    sessionCount: sessions.size,
-    messageCount: allMessages.length,
-    timeWindow: {
-      start: previousCommitTime,
-      end: commitTime,
-    },
-  };
+      span.setAttribute('commit_story.context.sessions_count', sessions.size);
+      span.setAttribute('commit_story.context.messages_count', allMessages.length);
+
+      return {
+        messages: allMessages,
+        sessions,
+        sessionCount: sessions.size,
+        messageCount: allMessages.length,
+        timeWindow: {
+          start: previousCommitTime,
+          end: commitTime,
+        },
+      };
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
