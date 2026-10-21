@@ -3,16 +3,23 @@
 
 import { readFile, writeFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { generateDailySummary, generateWeeklySummary, generateMonthlySummary } from '../generators/summary-graph.js';
+import {
+  generateDailySummary,
+  generateWeeklySummary,
+  generateMonthlySummary
+} from '../generators/summary-graph.js';
 import {
   getJournalEntryPath,
   getSummaryPath,
   getSummariesDirectory,
   getDateString,
   getISOWeekString,
-  ensureDirectory,
+  ensureDirectory
 } from '../utils/journal-paths.js';
 import { isFailurePlaceholder } from '../utils/failure-placeholder.js';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Check whether a summary file at a path exists with real (non-stale) content.
@@ -40,27 +47,50 @@ const ENTRY_SEPARATOR = '══════════════════�
  * @returns {Promise<string[]>} Array of individual entry strings
  */
 export async function readDayEntries(date, basePath = '.') {
-  const entryPath = getJournalEntryPath(date, basePath);
+  return tracer.startActiveSpan(
+    'commit_story.journal.read_day_entries',
+    async (span) => {
+      try {
+        if (span.isRecording()) {
+          span.setAttribute(
+            'commit_story.journal.entry_date',
+            new Date(date).toISOString().split('T')[0]
+          );
+        }
+        const entryPath = getJournalEntryPath(date, basePath);
+        span.setAttribute('commit_story.journal.file_path', entryPath);
 
-  let content;
-  try {
-    content = await readFile(entryPath, 'utf-8');
-  } catch (err) {
-    if (err.code === 'ENOENT') return [];
-    throw err;
-  }
+        let content;
+        try {
+          content = await readFile(entryPath, 'utf-8');
+        } catch (err) {
+          if (err.code === 'ENOENT') return [];
+          span.recordException(err);
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          throw err;
+        }
 
-  if (!content || !content.trim()) {
-    return [];
-  }
+        if (!content || !content.trim()) {
+          return [];
+        }
 
-  // Split by separator, filter out empty parts
-  const entries = content
-    .split(ENTRY_SEPARATOR)
-    .map(e => e.trim())
-    .filter(e => e.length > 0);
+        // Split by separator, filter out empty parts
+        const entries = content
+          .split(ENTRY_SEPARATOR)
+          .map((e) => e.trim())
+          .filter((e) => e.length > 0);
 
-  return entries;
+        span.setAttribute('commit_story.journal.entries_count', entries.length);
+        return entries;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    }
+  );
 }
 
 /**
@@ -99,19 +129,44 @@ export function formatDailySummary(sections, dateStr) {
  * @param {{ force?: boolean }} options - Options
  * @returns {Promise<string|null>} Path to saved file, or null if skipped
  */
-export async function saveDailySummary(content, date, basePath = '.', options = {}) {
-  const summaryPath = getSummaryPath('daily', date, basePath);
+export async function saveDailySummary(
+  content,
+  date,
+  basePath = '.',
+  options = {}
+) {
+  return tracer.startActiveSpan(
+    'commit_story.journal.save_daily_summary',
+    async (span) => {
+      try {
+        if (span.isRecording()) {
+          span.setAttribute(
+            'commit_story.journal.entry_date',
+            new Date(date).toISOString().split('T')[0]
+          );
+        }
+        const summaryPath = getSummaryPath('daily', date, basePath);
+        span.setAttribute('commit_story.journal.file_path', summaryPath);
 
-  // Check for existing summary (DD-003: file existence for duplicate detection)
-  // A failure-placeholder file is treated as stale and regenerated rather than skipped.
-  if (!options.force && (await _hasRealSummary(summaryPath))) {
-    return null;
-  }
+        // Check for existing summary (DD-003: file existence for duplicate detection)
+        // A failure-placeholder file is treated as stale and regenerated rather than skipped.
+        if (!options.force && (await _hasRealSummary(summaryPath))) {
+          return null;
+        }
 
-  await ensureDirectory(summaryPath);
-  await writeFile(summaryPath, content, 'utf-8');
+        await ensureDirectory(summaryPath);
+        await writeFile(summaryPath, content, 'utf-8');
 
-  return summaryPath;
+        return summaryPath;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    }
+  );
 }
 
 /**
@@ -121,42 +176,72 @@ export async function saveDailySummary(content, date, basePath = '.', options = 
  * @param {{ force?: boolean }} options - Options
  * @returns {Promise<{ saved: boolean, path?: string, reason?: string, entryCount?: number, errors?: string[] }>}
  */
-export async function generateAndSaveDailySummary(date, basePath = '.', options = {}) {
-  const dateStr = getDateString(date);
+export async function generateAndSaveDailySummary(
+  date,
+  basePath = '.',
+  options = {}
+) {
+  return tracer.startActiveSpan(
+    'commit_story.journal.generate_and_save_daily_summary',
+    async (span) => {
+      try {
+        const dateStr = getDateString(date);
+        span.setAttribute('commit_story.journal.entry_date', dateStr);
 
-  // Check for existing summary first (avoid reading entries unnecessarily)
-  if (!options.force) {
-    const summaryPath = getSummaryPath('daily', date, basePath);
-    if (await _hasRealSummary(summaryPath)) {
-      return { saved: false, reason: `Summary already exists for ${dateStr}` };
+        // Check for existing summary first (avoid reading entries unnecessarily)
+        if (!options.force) {
+          const summaryPath = getSummaryPath('daily', date, basePath);
+          if (await _hasRealSummary(summaryPath)) {
+            return {
+              saved: false,
+              reason: `Summary already exists for ${dateStr}`
+            };
+          }
+        }
+
+        // Read entries for the date
+        const entries = await readDayEntries(date, basePath);
+        span.setAttribute('commit_story.journal.entries_count', entries.length);
+        if (entries.length === 0) {
+          return {
+            saved: false,
+            reason: `Skipped ${dateStr}: no entries found`
+          };
+        }
+
+        // Generate summary via LangGraph
+        const result = await generateDailySummary(entries, dateStr);
+
+        // Format the output
+        const formatted = formatDailySummary(result, dateStr);
+
+        // Save to file
+        const path = await saveDailySummary(formatted, date, basePath, options);
+
+        if (!path) {
+          return {
+            saved: false,
+            reason: `Summary already exists for ${dateStr}`
+          };
+        }
+
+        span.setAttribute('commit_story.journal.file_path', path);
+
+        return {
+          saved: true,
+          path,
+          entryCount: entries.length,
+          errors: result.errors || []
+        };
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
     }
-  }
-
-  // Read entries for the date
-  const entries = await readDayEntries(date, basePath);
-  if (entries.length === 0) {
-    return { saved: false, reason: `Skipped ${dateStr}: no entries found` };
-  }
-
-  // Generate summary via LangGraph
-  const result = await generateDailySummary(entries, dateStr);
-
-  // Format the output
-  const formatted = formatDailySummary(result, dateStr);
-
-  // Save to file
-  const path = await saveDailySummary(formatted, date, basePath, options);
-
-  if (!path) {
-    return { saved: false, reason: `Summary already exists for ${dateStr}` };
-  }
-
-  return {
-    saved: true,
-    path,
-    entryCount: entries.length,
-    errors: result.errors || [],
-  };
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -171,7 +256,9 @@ export async function generateAndSaveDailySummary(date, basePath = '.', options 
 export function getWeekBoundaries(weekStr) {
   const match = weekStr.match(/^(\d{4})-W(\d{2})$/);
   if (!match) {
-    throw new Error(`Invalid ISO week string: "${weekStr}". Expected format: YYYY-Www`);
+    throw new Error(
+      `Invalid ISO week string: "${weekStr}". Expected format: YYYY-Www`
+    );
   }
 
   const [, yearStr, weekStr2] = match;
@@ -204,30 +291,48 @@ export function getWeekBoundaries(weekStr) {
  * @returns {Promise<Array<{ date: string, content: string }>>} Daily summaries sorted by date
  */
 export async function readWeekDailySummaries(weekStr, basePath = '.') {
-  const { monday, sunday } = getWeekBoundaries(weekStr);
+  return tracer.startActiveSpan(
+    'commit_story.journal.read_week_daily_summaries',
+    async (span) => {
+      span.setAttribute('commit_story.journal.week_label', weekStr);
+      try {
+        const { monday, sunday } = getWeekBoundaries(weekStr);
 
-  const summaries = [];
+        const summaries = [];
 
-  // Check each day in the week
-  const current = new Date(monday);
-  while (current <= sunday) {
-    const dateStr = getDateString(current);
-    const dailyPath = getSummaryPath('daily', current, basePath);
+        // Check each day in the week
+        const current = new Date(monday);
+        while (current <= sunday) {
+          const dateStr = getDateString(current);
+          const dailyPath = getSummaryPath('daily', current, basePath);
 
-    try {
-      const content = await readFile(dailyPath, 'utf-8');
-      if (content && content.trim()) {
-        summaries.push({ date: dateStr, content: content.trim() });
+          try {
+            const content = await readFile(dailyPath, 'utf-8');
+            if (content && content.trim()) {
+              summaries.push({ date: dateStr, content: content.trim() });
+            }
+          } catch (err) {
+            if (err.code !== 'ENOENT') throw err;
+            // ENOENT: no daily summary for this day — skip
+          }
+
+          current.setDate(current.getDate() + 1);
+        }
+
+        span.setAttribute(
+          'commit_story.journal.entries_count',
+          summaries.length
+        );
+        return summaries;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
       }
-    } catch (err) {
-      if (err.code !== 'ENOENT') throw err;
-      // ENOENT: no daily summary for this day — skip
     }
-
-    current.setDate(current.getDate() + 1);
-  }
-
-  return summaries;
+  );
 }
 
 /**
@@ -266,21 +371,48 @@ export function formatWeeklySummary(sections, weekStr) {
  * @param {{ force?: boolean }} options - Options
  * @returns {Promise<string|null>} Path to saved file, or null if skipped
  */
-export async function saveWeeklySummary(content, weekStr, basePath = '.', options = {}) {
-  // Use any date in the week to compute the path (Monday)
-  const { monday } = getWeekBoundaries(weekStr);
-  const summaryPath = getSummaryPath('weekly', monday, basePath);
+export async function saveWeeklySummary(
+  content,
+  weekStr,
+  basePath = '.',
+  options = {}
+) {
+  return tracer.startActiveSpan(
+    'commit_story.journal.save_weekly_summary',
+    async (span) => {
+      try {
+        span.setAttribute('commit_story.journal.week_label', weekStr);
+        // Use any date in the week to compute the path (Monday)
+        const { monday } = getWeekBoundaries(weekStr);
+        const summaryPath = getSummaryPath('weekly', monday, basePath);
+        span.setAttribute('commit_story.journal.file_path', summaryPath);
 
-  // Check for existing summary (DD-003)
-  // A failure-placeholder file is treated as stale and regenerated rather than skipped.
-  if (!options.force && (await _hasRealSummary(summaryPath))) {
-    return null;
-  }
+        // Check for existing summary (DD-003)
+        // A failure-placeholder file is treated as stale and regenerated rather than skipped.
+        if (!options.force && (await _hasRealSummary(summaryPath))) {
+          return null;
+        }
 
-  await ensureDirectory(summaryPath);
-  await writeFile(summaryPath, content, 'utf-8');
+        await ensureDirectory(summaryPath);
+        await writeFile(summaryPath, content, 'utf-8');
 
-  return summaryPath;
+        if (span.isRecording()) {
+          span.setAttribute(
+            'commit_story.journal.word_count',
+            content.split(' ').length
+          );
+        }
+
+        return summaryPath;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    }
+  );
 }
 
 /**
@@ -290,41 +422,81 @@ export async function saveWeeklySummary(content, weekStr, basePath = '.', option
  * @param {{ force?: boolean }} options - Options
  * @returns {Promise<{ saved: boolean, path?: string, reason?: string, dayCount?: number, errors?: string[] }>}
  */
-export async function generateAndSaveWeeklySummary(weekStr, basePath = '.', options = {}) {
-  // Check for existing summary first
-  if (!options.force) {
-    const { monday } = getWeekBoundaries(weekStr);
-    const summaryPath = getSummaryPath('weekly', monday, basePath);
-    if (await _hasRealSummary(summaryPath)) {
-      return { saved: false, reason: `Weekly summary already exists for ${weekStr}` };
+export async function generateAndSaveWeeklySummary(
+  weekStr,
+  basePath = '.',
+  options = {}
+) {
+  return tracer.startActiveSpan(
+    'commit_story.journal.generate_and_save_weekly_summary',
+    async (span) => {
+      try {
+        span.setAttribute('commit_story.journal.week_label', weekStr);
+
+        // Check for existing summary first
+        if (!options.force) {
+          const { monday } = getWeekBoundaries(weekStr);
+          const summaryPath = getSummaryPath('weekly', monday, basePath);
+          if (await _hasRealSummary(summaryPath)) {
+            return {
+              saved: false,
+              reason: `Weekly summary already exists for ${weekStr}`
+            };
+          }
+        }
+
+        // Read daily summaries for the week
+        const dailySummaries = await readWeekDailySummaries(weekStr, basePath);
+        if (dailySummaries.length === 0) {
+          return {
+            saved: false,
+            reason: `Skipped ${weekStr}: no daily summaries found`
+          };
+        }
+
+        span.setAttribute(
+          'commit_story.journal.entries_count',
+          dailySummaries.length
+        );
+
+        // Generate weekly summary via LangGraph
+        const result = await generateWeeklySummary(dailySummaries, weekStr);
+
+        // Format the output
+        const formatted = formatWeeklySummary(result, weekStr);
+
+        // Save to file
+        const path = await saveWeeklySummary(
+          formatted,
+          weekStr,
+          basePath,
+          options
+        );
+
+        if (!path) {
+          return {
+            saved: false,
+            reason: `Weekly summary already exists for ${weekStr}`
+          };
+        }
+
+        span.setAttribute('commit_story.journal.file_path', path);
+
+        return {
+          saved: true,
+          path,
+          dayCount: dailySummaries.length,
+          errors: result.errors || []
+        };
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
     }
-  }
-
-  // Read daily summaries for the week
-  const dailySummaries = await readWeekDailySummaries(weekStr, basePath);
-  if (dailySummaries.length === 0) {
-    return { saved: false, reason: `Skipped ${weekStr}: no daily summaries found` };
-  }
-
-  // Generate weekly summary via LangGraph
-  const result = await generateWeeklySummary(dailySummaries, weekStr);
-
-  // Format the output
-  const formatted = formatWeeklySummary(result, weekStr);
-
-  // Save to file
-  const path = await saveWeeklySummary(formatted, weekStr, basePath, options);
-
-  if (!path) {
-    return { saved: false, reason: `Weekly summary already exists for ${weekStr}` };
-  }
-
-  return {
-    saved: true,
-    path,
-    dayCount: dailySummaries.length,
-    errors: result.errors || [],
-  };
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -339,7 +511,9 @@ export async function generateAndSaveWeeklySummary(weekStr, basePath = '.', opti
 export function getMonthBoundaries(monthStr) {
   const match = monthStr.match(/^(\d{4})-(\d{2})$/);
   if (!match) {
-    throw new Error(`Invalid month string: "${monthStr}". Expected format: YYYY-MM`);
+    throw new Error(
+      `Invalid month string: "${monthStr}". Expected format: YYYY-MM`
+    );
   }
 
   const [, yearStr, monthNumStr] = match;
@@ -347,7 +521,9 @@ export function getMonthBoundaries(monthStr) {
   const month = parseInt(monthNumStr);
 
   if (month < 1 || month > 12) {
-    throw new Error(`Invalid month string: "${monthStr}". Expected format: YYYY-MM`);
+    throw new Error(
+      `Invalid month string: "${monthStr}". Expected format: YYYY-MM`
+    );
   }
 
   const firstDay = new Date(year, month - 1, 1);
@@ -365,45 +541,67 @@ export function getMonthBoundaries(monthStr) {
  * @returns {Promise<Array<{ weekLabel: string, content: string }>>} Weekly summaries sorted by week
  */
 export async function readMonthWeeklySummaries(monthStr, basePath = '.') {
-  const { firstDay, lastDay } = getMonthBoundaries(monthStr);
-  const weeklyDir = getSummariesDirectory('weekly', basePath);
-
-  let files;
-  try {
-    files = await readdir(weeklyDir);
-  } catch (err) {
-    if (err.code === 'ENOENT') return [];
-    throw err;
-  }
-
-  const weekPattern = /^(\d{4}-W\d{2})\.md$/;
-  const summaries = [];
-
-  for (const file of files.sort()) {
-    const match = file.match(weekPattern);
-    if (!match) continue;
-
-    const weekLabel = match[1];
-
-    // Check if this week overlaps with the month
-    // Import getWeekBoundaries locally to avoid circular dependency concerns
-    const { monday } = getWeekBoundaries(weekLabel);
-
-    // A week belongs to the month that contains its Monday (matches summary-detector.js)
-    if (monday >= firstDay && monday <= lastDay) {
+  return tracer.startActiveSpan(
+    'commit_story.journal.read_month_weekly_summaries',
+    async (span) => {
       try {
-        const content = await readFile(join(weeklyDir, file), 'utf-8');
-        if (content && content.trim()) {
-          summaries.push({ weekLabel, content: content.trim() });
+        span.setAttribute('commit_story.journal.month_label', monthStr);
+        const { firstDay, lastDay } = getMonthBoundaries(monthStr);
+        const weeklyDir = getSummariesDirectory('weekly', basePath);
+
+        let files;
+        try {
+          files = await readdir(weeklyDir);
+        } catch (err) {
+          if (err.code === 'ENOENT') return [];
+          span.recordException(err);
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          throw err;
         }
-      } catch (err) {
-        if (err.code !== 'ENOENT') throw err;
-        // ENOENT: skip this file
+
+        const weekPattern = /^(\d{4}-W\d{2})\.md$/;
+        const summaries = [];
+
+        for (const file of files.sort()) {
+          const match = file.match(weekPattern);
+          if (!match) continue;
+
+          const weekLabel = match[1];
+
+          // Check if this week overlaps with the month
+          // Import getWeekBoundaries locally to avoid circular dependency concerns
+          const { monday } = getWeekBoundaries(weekLabel);
+
+          // A week belongs to the month that contains its Monday (matches summary-detector.js)
+          if (monday >= firstDay && monday <= lastDay) {
+            try {
+              const content = await readFile(join(weeklyDir, file), 'utf-8');
+              if (content && content.trim()) {
+                summaries.push({ weekLabel, content: content.trim() });
+              }
+            } catch (err) {
+              if (err.code !== 'ENOENT') throw err;
+              // ENOENT: skip this file
+            }
+          }
+        }
+
+        if (summaries != null) {
+          span.setAttribute(
+            'commit_story.journal.entries_count',
+            summaries.length
+          );
+        }
+        return summaries;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
       }
     }
-  }
-
-  return summaries;
+  );
 }
 
 /**
@@ -423,7 +621,9 @@ export function formatMonthlySummary(sections, monthStr) {
   lines.push('');
   lines.push('## Accomplishments');
   lines.push('');
-  lines.push(sections.accomplishments || 'No standout accomplishments this month.');
+  lines.push(
+    sections.accomplishments || 'No standout accomplishments this month.'
+  );
   lines.push('');
   lines.push('## Growth');
   lines.push('');
@@ -431,7 +631,9 @@ export function formatMonthlySummary(sections, monthStr) {
   lines.push('');
   lines.push('## Looking Ahead');
   lines.push('');
-  lines.push(sections.lookingAhead || 'No open threads carrying into next month.');
+  lines.push(
+    sections.lookingAhead || 'No open threads carrying into next month.'
+  );
   lines.push('');
 
   return lines.join('\n');
@@ -446,20 +648,40 @@ export function formatMonthlySummary(sections, monthStr) {
  * @param {{ force?: boolean }} options - Options
  * @returns {Promise<string|null>} Path to saved file, or null if skipped
  */
-export async function saveMonthlySummary(content, monthStr, basePath = '.', options = {}) {
-  const { firstDay } = getMonthBoundaries(monthStr);
-  const summaryPath = getSummaryPath('monthly', firstDay, basePath);
+export async function saveMonthlySummary(
+  content,
+  monthStr,
+  basePath = '.',
+  options = {}
+) {
+  return tracer.startActiveSpan(
+    'commit_story.journal.save_monthly_summary',
+    async (span) => {
+      try {
+        span.setAttribute('commit_story.journal.month_label', monthStr);
+        const { firstDay } = getMonthBoundaries(monthStr);
+        const summaryPath = getSummaryPath('monthly', firstDay, basePath);
+        span.setAttribute('commit_story.journal.file_path', summaryPath);
 
-  // Check for existing summary (DD-003)
-  // A failure-placeholder file is treated as stale and regenerated rather than skipped.
-  if (!options.force && (await _hasRealSummary(summaryPath))) {
-    return null;
-  }
+        // Check for existing summary (DD-003)
+        // A failure-placeholder file is treated as stale and regenerated rather than skipped.
+        if (!options.force && (await _hasRealSummary(summaryPath))) {
+          return null;
+        }
 
-  await ensureDirectory(summaryPath);
-  await writeFile(summaryPath, content, 'utf-8');
+        await ensureDirectory(summaryPath);
+        await writeFile(summaryPath, content, 'utf-8');
 
-  return summaryPath;
+        return summaryPath;
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    }
+  );
 }
 
 /**
@@ -469,39 +691,81 @@ export async function saveMonthlySummary(content, monthStr, basePath = '.', opti
  * @param {{ force?: boolean }} options - Options
  * @returns {Promise<{ saved: boolean, path?: string, reason?: string, weekCount?: number, errors?: string[] }>}
  */
-export async function generateAndSaveMonthlySummary(monthStr, basePath = '.', options = {}) {
-  // Check for existing summary first
-  if (!options.force) {
-    const { firstDay } = getMonthBoundaries(monthStr);
-    const summaryPath = getSummaryPath('monthly', firstDay, basePath);
-    if (await _hasRealSummary(summaryPath)) {
-      return { saved: false, reason: `Monthly summary already exists for ${monthStr}` };
+export async function generateAndSaveMonthlySummary(
+  monthStr,
+  basePath = '.',
+  options = {}
+) {
+  return tracer.startActiveSpan(
+    'commit_story.journal.generate_and_save_monthly_summary',
+    async (span) => {
+      try {
+        span.setAttribute('commit_story.journal.month_label', monthStr);
+
+        // Check for existing summary first
+        if (!options.force) {
+          const { firstDay } = getMonthBoundaries(monthStr);
+          const summaryPath = getSummaryPath('monthly', firstDay, basePath);
+          if (await _hasRealSummary(summaryPath)) {
+            return {
+              saved: false,
+              reason: `Monthly summary already exists for ${monthStr}`
+            };
+          }
+        }
+
+        // Read weekly summaries for the month
+        const weeklySummaries = await readMonthWeeklySummaries(
+          monthStr,
+          basePath
+        );
+        if (weeklySummaries.length === 0) {
+          return {
+            saved: false,
+            reason: `Skipped ${monthStr}: no weekly summaries found`
+          };
+        }
+        span.setAttribute(
+          'commit_story.journal.entries_count',
+          weeklySummaries.length
+        );
+
+        // Generate monthly summary via LangGraph
+        const result = await generateMonthlySummary(weeklySummaries, monthStr);
+
+        // Format the output
+        const formatted = formatMonthlySummary(result, monthStr);
+
+        // Save to file
+        const path = await saveMonthlySummary(
+          formatted,
+          monthStr,
+          basePath,
+          options
+        );
+
+        if (!path) {
+          return {
+            saved: false,
+            reason: `Monthly summary already exists for ${monthStr}`
+          };
+        }
+
+        span.setAttribute('commit_story.journal.file_path', path);
+
+        return {
+          saved: true,
+          path,
+          weekCount: weeklySummaries.length,
+          errors: result.errors || []
+        };
+      } catch (error) {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
     }
-  }
-
-  // Read weekly summaries for the month
-  const weeklySummaries = await readMonthWeeklySummaries(monthStr, basePath);
-  if (weeklySummaries.length === 0) {
-    return { saved: false, reason: `Skipped ${monthStr}: no weekly summaries found` };
-  }
-
-  // Generate monthly summary via LangGraph
-  const result = await generateMonthlySummary(weeklySummaries, monthStr);
-
-  // Format the output
-  const formatted = formatMonthlySummary(result, monthStr);
-
-  // Save to file
-  const path = await saveMonthlySummary(formatted, monthStr, basePath, options);
-
-  if (!path) {
-    return { saved: false, reason: `Monthly summary already exists for ${monthStr}` };
-  }
-
-  return {
-    saved: true,
-    path,
-    weekCount: weeklySummaries.length,
-    errors: result.errors || [],
-  };
+  );
 }

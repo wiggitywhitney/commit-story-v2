@@ -9,12 +9,15 @@
  * - Comprehensive context: When user just says "capture context"
  */
 
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { z } from 'zod';
 import { mkdir, appendFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 /** Separator bar for entries */
 const SEPARATOR = '═══════════════════════════════════════';
+
+const tracer = trace.getTracer('commit-story');
 
 /**
  * Get the context file path for a date
@@ -67,17 +70,31 @@ ${SEPARATOR}
  * @returns {Promise<string>} - The path where the context was saved
  */
 async function saveContext(text) {
-  const now = new Date();
-  const filePath = getContextPath(now);
+  return tracer.startActiveSpan('commit_story.context.save_context', async (span) => {
+    try {
+      const now = new Date();
+      const filePath = getContextPath(now);
+      span.setAttribute('commit_story.journal.file_path', filePath);
+      if (span.isRecording()) {
+        span.setAttribute('commit_story.journal.entry_date', now.toISOString().split('T')[0]);
+      }
 
-  // Ensure directory exists
-  await mkdir(dirname(filePath), { recursive: true });
+      // Ensure directory exists
+      await mkdir(dirname(filePath), { recursive: true });
 
-  // Format and append the entry
-  const entry = formatContextEntry(text, now);
-  await appendFile(filePath, entry, 'utf-8');
+      // Format and append the entry
+      const entry = formatContextEntry(text, now);
+      await appendFile(filePath, entry, 'utf-8');
 
-  return filePath;
+      return filePath;
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 /**

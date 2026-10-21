@@ -1,6 +1,7 @@
 // ABOUTME: Journal entry formatting, file writing, and reflection discovery
 // ABOUTME: Uses fs/promises for async file operations and UTC-first time handling
 
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { readFile, appendFile, writeFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
@@ -11,6 +12,8 @@ import {
   getYearMonth,
 } from '../utils/journal-paths.js';
 import { isFailurePlaceholder } from '../utils/failure-placeholder.js';
+
+const tracer = trace.getTracer('commit-story');
 
 /** Separator between journal entries */
 const ENTRY_SEPARATOR = '\n═══════════════════════════════════════\n\n';
@@ -172,66 +175,79 @@ export function formatJournalEntry(sections, commit, reflections = []) {
  * @returns {Promise<string>} Path to saved file
  */
 export async function saveJournalEntry(sections, commit, reflections = [], basePath = '.', options = {}) {
-  const log = options.debug || (() => {});
-  const entryPath = getJournalEntryPath(commit.timestamp, basePath);
+  return tracer.startActiveSpan('commit_story.journal.save_journal_entry', async (span) => {
+    try {
+      const log = options.debug || (() => {});
+      const entryPath = getJournalEntryPath(commit.timestamp, basePath);
+      span.setAttribute('commit_story.journal.file_path', entryPath);
+      span.setAttribute('vcs.ref.head.revision', commit.hash);
+      span.setAttribute('commit_story.commit.timestamp', commit.timestamp.toISOString());
 
-  // Ensure directory exists
-  await ensureDirectory(entryPath);
+      // Ensure directory exists
+      await ensureDirectory(entryPath);
 
-  // Check for duplicate entry
-  let strippedContent = null;
-  try {
-    const existing = await readFile(entryPath, 'utf-8');
-    const entryBlocks = existing.split(ENTRY_SEPARATOR.trim());
+      // Check for duplicate entry
+      let strippedContent = null;
+      try {
+        const existing = await readFile(entryPath, 'utf-8');
+        const entryBlocks = existing.split(ENTRY_SEPARATOR.trim());
 
-    // Path 1: Exact hash match (catches re-runs of the same commit)
-    const hashMatchIndex = entryBlocks.findIndex(block => block.includes(`Commit: ${commit.shortHash}`));
+        // Path 1: Exact hash match (catches re-runs of the same commit)
+        const hashMatchIndex = entryBlocks.findIndex(block => block.includes(`Commit: ${commit.shortHash}`));
 
-    // Path 2: Semantic match (catches cherry-pick/rebase duplicates)
-    // Cherry-picks and rebases preserve author timestamp and commit message
-    // but produce a new commit hash. Match on both to avoid false positives.
-    // Checked within the SAME entry block to avoid false positives when
-    // different entries each share only one field.
-    const timeStr = formatTimestamp(commit.timestamp);
-    const commitMessage = (commit.message || '').split('\n')[0];
-    const semanticMatchIndex = commitMessage
-      ? entryBlocks.findIndex(
-          block => block.includes(`## ${timeStr}`) && block.includes(`**Message**: "${commitMessage}"`)
-        )
-      : -1;
+        // Path 2: Semantic match (catches cherry-pick/rebase duplicates)
+        // Cherry-picks and rebases preserve author timestamp and commit message
+        // but produce a new commit hash. Match on both to avoid false positives.
+        // Checked within the SAME entry block to avoid false positives when
+        // different entries each share only one field.
+        const timeStr = formatTimestamp(commit.timestamp);
+        const commitMessage = (commit.message || '').split('\n')[0];
+        const semanticMatchIndex = commitMessage
+          ? entryBlocks.findIndex(
+              block => block.includes(`## ${timeStr}`) && block.includes(`**Message**: "${commitMessage}"`)
+            )
+          : -1;
 
-    const matchIndex = hashMatchIndex !== -1 ? hashMatchIndex : semanticMatchIndex;
+        const matchIndex = hashMatchIndex !== -1 ? hashMatchIndex : semanticMatchIndex;
 
-    if (matchIndex !== -1) {
-      const matchedBlock = entryBlocks[matchIndex];
+        if (matchIndex !== -1) {
+          const matchedBlock = entryBlocks[matchIndex];
 
-      if (!isFailurePlaceholder(matchedBlock)) {
-        log(`Skipping duplicate entry: ${hashMatchIndex !== -1 ? 'exact hash match' : 'semantic match'} for ${commit.shortHash}`);
-        return entryPath;
+          if (!isFailurePlaceholder(matchedBlock)) {
+            log(`Skipping duplicate entry: ${hashMatchIndex !== -1 ? 'exact hash match' : 'semantic match'} for ${commit.shortHash}`);
+            return entryPath;
+          }
+
+          // Existing entry is a stale failure placeholder — drop it and regenerate below
+          log(`Regenerating stale placeholder entry for ${commit.shortHash}`);
+          strippedContent = entryBlocks.filter((_, i) => i !== matchIndex).join(ENTRY_SEPARATOR.trim());
+        }
+      } catch (err) {
+        if (err.code !== 'ENOENT') throw err;
+        // File doesn't exist yet, proceed
       }
 
-      // Existing entry is a stale failure placeholder — drop it and regenerate below
-      log(`Regenerating stale placeholder entry for ${commit.shortHash}`);
-      strippedContent = entryBlocks.filter((_, i) => i !== matchIndex).join(ENTRY_SEPARATOR.trim());
+      // Format the entry
+      const formattedEntry = formatJournalEntry(sections, commit, reflections);
+
+      if (strippedContent !== null) {
+        // Replace the stale block and add the regenerated entry in a single write, so a
+        // crash between removing the placeholder and appending the fresh entry can't lose it
+        await writeFile(entryPath, strippedContent + formattedEntry + '\n', 'utf-8');
+      } else {
+        // Append to file (creates if doesn't exist)
+        await appendFile(entryPath, formattedEntry + '\n', 'utf-8');
+      }
+
+      return entryPath;
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
     }
-  } catch (err) {
-    if (err.code !== 'ENOENT') throw err;
-    // File doesn't exist yet, proceed
-  }
-
-  // Format the entry
-  const formattedEntry = formatJournalEntry(sections, commit, reflections);
-
-  if (strippedContent !== null) {
-    // Replace the stale block and add the regenerated entry in a single write, so a
-    // crash between removing the placeholder and appending the fresh entry can't lose it
-    await writeFile(entryPath, strippedContent + formattedEntry + '\n', 'utf-8');
-  } else {
-    // Append to file (creates if doesn't exist)
-    await appendFile(entryPath, formattedEntry + '\n', 'utf-8');
-  }
-
-  return entryPath;
+  });
 }
 
 /**
@@ -340,71 +356,85 @@ function isInTimeWindow(timestamp, startTime, endTime) {
  * @returns {Promise<Array>} Array of reflections sorted chronologically
  */
 export async function discoverReflections(startTime, endTime, basePath = '.') {
-  const reflections = [];
-
-  // Get all year-month directories that could contain relevant reflections
-  const startYearMonth = getYearMonth(startTime);
-  const endYearMonth = getYearMonth(endTime);
-  const yearMonths = getYearMonthRange(startYearMonth, endYearMonth);
-
-  for (const yearMonth of yearMonths) {
-    const reflectionsDir = join(basePath, 'journal', 'reflections', yearMonth);
-
+  return tracer.startActiveSpan('commit_story.journal.discover_reflections', async (span) => {
     try {
-      const files = await readdir(reflectionsDir);
+      span.setAttribute('commit_story.context.time_window_start', startTime.toISOString());
+      span.setAttribute('commit_story.context.time_window_end', endTime.toISOString());
 
-      for (const file of files) {
-        if (!file.endsWith('.md')) {
-          continue;
-        }
+      const reflections = [];
 
-        const fileDate = parseDateFromFilename(file);
-        if (!fileDate) {
-          continue;
-        }
+      // Get all year-month directories that could contain relevant reflections
+      const startYearMonth = getYearMonth(startTime);
+      const endYearMonth = getYearMonth(endTime);
+      const yearMonths = getYearMonthRange(startYearMonth, endYearMonth);
 
-        // Quick check: skip files outside the date range
-        // (dates are at start of day, so include if within range)
-        const fileDateEnd = new Date(fileDate);
-        fileDateEnd.setHours(23, 59, 59, 999);
+      for (const yearMonth of yearMonths) {
+        const reflectionsDir = join(basePath, 'journal', 'reflections', yearMonth);
 
-        if (fileDateEnd.getTime() < startTime.getTime()) {
-          continue;
-        }
-        if (fileDate.getTime() > endTime.getTime()) {
-          continue;
-        }
-
-        // Read and parse reflections from file
-        const filePath = join(reflectionsDir, file);
         try {
-          const content = await readFile(filePath, 'utf-8');
-          const fileReflections = parseReflectionsFile(content, fileDate);
+          const files = await readdir(reflectionsDir);
 
-          // Filter to time window
-          for (const reflection of fileReflections) {
-            if (isInTimeWindow(reflection.timestamp, startTime, endTime)) {
-              reflections.push({
-                ...reflection,
-                filePath,
-              });
+          for (const file of files) {
+            if (!file.endsWith('.md')) {
+              continue;
+            }
+
+            const fileDate = parseDateFromFilename(file);
+            if (!fileDate) {
+              continue;
+            }
+
+            // Quick check: skip files outside the date range
+            // (dates are at start of day, so include if within range)
+            const fileDateEnd = new Date(fileDate);
+            fileDateEnd.setHours(23, 59, 59, 999);
+
+            if (fileDateEnd.getTime() < startTime.getTime()) {
+              continue;
+            }
+            if (fileDate.getTime() > endTime.getTime()) {
+              continue;
+            }
+
+            // Read and parse reflections from file
+            const filePath = join(reflectionsDir, file);
+            try {
+              const content = await readFile(filePath, 'utf-8');
+              const fileReflections = parseReflectionsFile(content, fileDate);
+
+              // Filter to time window
+              for (const reflection of fileReflections) {
+                if (isInTimeWindow(reflection.timestamp, startTime, endTime)) {
+                  reflections.push({
+                    ...reflection,
+                    filePath,
+                  });
+                }
+              }
+            } catch {
+              // Skip files that can't be read
+              continue;
             }
           }
         } catch {
-          // Skip files that can't be read
+          // Directory doesn't exist, skip
           continue;
         }
       }
-    } catch {
-      // Directory doesn't exist, skip
-      continue;
+
+      // Sort chronologically
+      reflections.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      span.setAttribute('commit_story.journal.reflections_count', String(reflections.length));
+
+      return reflections;
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
     }
-  }
-
-  // Sort chronologically
-  reflections.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-  return reflections;
+  });
 }
 
 
