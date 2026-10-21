@@ -30,6 +30,9 @@ import { isJournalEntriesOnlyCommit, isMergeCommit, shouldSkipMergeCommit, isSaf
 import { triggerAutoSummaries } from './managers/auto-summarize.js';
 import { parseSummarizeArgs, runSummarize, runWeeklySummarize, runMonthlySummarize, showSummarizeHelp } from './commands/summarize.js';
 import logger from './logger.js';
+import { trace, SpanStatusCode } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('commit-story');
 
 /** Exit codes */
 const EXIT_SUCCESS = 0;
@@ -197,140 +200,154 @@ function getPreviousCommitTime(commitRef) {
  * @returns {Promise<number>} Exit code
  */
 export async function handleSummarize(args) {
-  const parsed = parseSummarizeArgs(args);
+  return tracer.startActiveSpan('commit_story.cli.handle_summarize', async (span) => {
+    try {
+      const parsed = parseSummarizeArgs(args);
+      span.setAttribute('commit_story.journal.force', parsed.force ?? false);
 
-  if (parsed.help) {
-    showSummarizeHelp();
-    return EXIT_SUCCESS;
-  }
-
-  if (parsed.error) {
-    logger.error(parsed.error);
-    return EXIT_ERROR;
-  }
-
-  // Validate environment (need API key for generation)
-  if (!validateEnvironment()) {
-    return EXIT_ERROR;
-  }
-
-  // Weekly mode
-  if (parsed.weekly) {
-    const total = parsed.weeks.length;
-    logger.info(`Generating weekly summaries for ${total} week${total > 1 ? 's' : ''}...`);
-    if (parsed.force) {
-      logger.info('--force: regenerating existing summaries');
-    }
-
-    let completed = 0;
-    const result = await runWeeklySummarize({
-      weeks: parsed.weeks,
-      force: parsed.force,
-      basePath: '.',
-      onProgress: (msg) => {
-        completed++;
-        logger.info({ progress: `${completed}/${total}` }, msg);
-      },
-    });
-
-    if (result.generated.length > 0) {
-      logger.info({ count: result.generated.length }, 'Generated weekly summaries');
-    }
-    if (result.noSummaries.length > 0) {
-      logger.info({ count: result.noSummaries.length }, 'No daily summaries found for weeks');
-    }
-    if (result.alreadyExists.length > 0) {
-      logger.info({ count: result.alreadyExists.length }, 'Weekly summaries already exist');
-    }
-    if (result.failed.length > 0) {
-      logger.warn({ count: result.failed.length, weeks: result.failed }, 'Failed to generate weekly summaries');
-    }
-    if (result.errors.length > 0) {
-      for (const err of result.errors) {
-        logger.warn({ error: err }, 'Weekly summary error');
+      if (parsed.help) {
+        showSummarizeHelp();
+        return EXIT_SUCCESS;
       }
-    }
 
-    return result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS;
-  }
-
-  // Monthly mode
-  if (parsed.monthly) {
-    const total = parsed.months.length;
-    logger.info(`Generating monthly summaries for ${total} month${total > 1 ? 's' : ''}...`);
-    if (parsed.force) {
-      logger.info('--force: regenerating existing summaries');
-    }
-
-    let completed = 0;
-    const result = await runMonthlySummarize({
-      months: parsed.months,
-      force: parsed.force,
-      basePath: '.',
-      onProgress: (msg) => {
-        completed++;
-        logger.info({ progress: `${completed}/${total}` }, msg);
-      },
-    });
-
-    if (result.generated.length > 0) {
-      logger.info({ count: result.generated.length }, 'Generated monthly summaries');
-    }
-    if (result.noSummaries.length > 0) {
-      logger.info({ count: result.noSummaries.length }, 'No weekly summaries found for months');
-    }
-    if (result.alreadyExists.length > 0) {
-      logger.info({ count: result.alreadyExists.length }, 'Monthly summaries already exist');
-    }
-    if (result.failed.length > 0) {
-      logger.warn({ count: result.failed.length, months: result.failed }, 'Failed to generate monthly summaries');
-    }
-    if (result.errors.length > 0) {
-      for (const err of result.errors) {
-        logger.warn({ error: err }, 'Monthly summary error');
+      if (parsed.error) {
+        logger.error(parsed.error);
+        return EXIT_ERROR;
       }
+
+      // Validate environment (need API key for generation)
+      if (!validateEnvironment()) {
+        return EXIT_ERROR;
+      }
+
+      // Weekly mode
+      if (parsed.weekly) {
+        const total = parsed.weeks.length;
+        span.setAttribute('commit_story.journal.weeks_count', total);
+        logger.info(`Generating weekly summaries for ${total} week${total > 1 ? 's' : ''}...`);
+        if (parsed.force) {
+          logger.info('--force: regenerating existing summaries');
+        }
+
+        let completed = 0;
+        const result = await runWeeklySummarize({
+          weeks: parsed.weeks,
+          force: parsed.force,
+          basePath: '.',
+          onProgress: (msg) => {
+            completed++;
+            logger.info({ progress: `${completed}/${total}` }, msg);
+          },
+        });
+
+        if (result.generated.length > 0) {
+          logger.info({ count: result.generated.length }, 'Generated weekly summaries');
+        }
+        if (result.noSummaries.length > 0) {
+          logger.info({ count: result.noSummaries.length }, 'No daily summaries found for weeks');
+        }
+        if (result.alreadyExists.length > 0) {
+          logger.info({ count: result.alreadyExists.length }, 'Weekly summaries already exist');
+        }
+        if (result.failed.length > 0) {
+          logger.warn({ count: result.failed.length, weeks: result.failed }, 'Failed to generate weekly summaries');
+        }
+        if (result.errors.length > 0) {
+          for (const err of result.errors) {
+            logger.warn({ error: err }, 'Weekly summary error');
+          }
+        }
+
+        return result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS;
+      }
+
+      // Monthly mode
+      if (parsed.monthly) {
+        const total = parsed.months.length;
+        span.setAttribute('commit_story.summary.months_count', total);
+        logger.info(`Generating monthly summaries for ${total} month${total > 1 ? 's' : ''}...`);
+        if (parsed.force) {
+          logger.info('--force: regenerating existing summaries');
+        }
+
+        let completed = 0;
+        const result = await runMonthlySummarize({
+          months: parsed.months,
+          force: parsed.force,
+          basePath: '.',
+          onProgress: (msg) => {
+            completed++;
+            logger.info({ progress: `${completed}/${total}` }, msg);
+          },
+        });
+
+        if (result.generated.length > 0) {
+          logger.info({ count: result.generated.length }, 'Generated monthly summaries');
+        }
+        if (result.noSummaries.length > 0) {
+          logger.info({ count: result.noSummaries.length }, 'No weekly summaries found for months');
+        }
+        if (result.alreadyExists.length > 0) {
+          logger.info({ count: result.alreadyExists.length }, 'Monthly summaries already exist');
+        }
+        if (result.failed.length > 0) {
+          logger.warn({ count: result.failed.length, months: result.failed }, 'Failed to generate monthly summaries');
+        }
+        if (result.errors.length > 0) {
+          for (const err of result.errors) {
+            logger.warn({ error: err }, 'Monthly summary error');
+          }
+        }
+
+        return result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS;
+      }
+
+      // Daily mode
+      const total = parsed.dates.length;
+      span.setAttribute('commit_story.journal.dates_count', total);
+      logger.info(`Generating daily summaries for ${total} date${total > 1 ? 's' : ''}...`);
+      if (parsed.force) {
+        logger.info('--force: regenerating existing summaries');
+      }
+
+      let completed = 0;
+      const result = await runSummarize({
+        dates: parsed.dates,
+        force: parsed.force,
+        basePath: '.',
+        onProgress: (msg) => {
+          completed++;
+          logger.info({ progress: `${completed}/${total}` }, msg);
+        },
+      });
+
+      if (result.generated.length > 0) {
+        logger.info({ count: result.generated.length }, 'Generated daily summaries');
+      }
+      if (result.noEntries.length > 0) {
+        logger.info({ count: result.noEntries.length }, 'No journal entries found for dates');
+      }
+      if (result.alreadyExists.length > 0) {
+        logger.info({ count: result.alreadyExists.length }, 'Daily summaries already exist');
+      }
+      if (result.failed.length > 0) {
+        logger.warn({ count: result.failed.length, dates: result.failed }, 'Failed to generate daily summaries');
+      }
+      if (result.errors.length > 0) {
+        for (const err of result.errors) {
+          logger.warn({ error: err }, 'Daily summary error');
+        }
+      }
+
+      return result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS;
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
     }
-
-    return result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS;
-  }
-
-  // Daily mode
-  const total = parsed.dates.length;
-  logger.info(`Generating daily summaries for ${total} date${total > 1 ? 's' : ''}...`);
-  if (parsed.force) {
-    logger.info('--force: regenerating existing summaries');
-  }
-
-  let completed = 0;
-  const result = await runSummarize({
-    dates: parsed.dates,
-    force: parsed.force,
-    basePath: '.',
-    onProgress: (msg) => {
-      completed++;
-      logger.info({ progress: `${completed}/${total}` }, msg);
-    },
   });
-
-  if (result.generated.length > 0) {
-    logger.info({ count: result.generated.length }, 'Generated daily summaries');
-  }
-  if (result.noEntries.length > 0) {
-    logger.info({ count: result.noEntries.length }, 'No journal entries found for dates');
-  }
-  if (result.alreadyExists.length > 0) {
-    logger.info({ count: result.alreadyExists.length }, 'Daily summaries already exist');
-  }
-  if (result.failed.length > 0) {
-    logger.warn({ count: result.failed.length, dates: result.failed }, 'Failed to generate daily summaries');
-  }
-  if (result.errors.length > 0) {
-    for (const err of result.errors) {
-      logger.warn({ error: err }, 'Daily summary error');
-    }
-  }
-
-  return result.failed.length > 0 ? EXIT_ERROR : EXIT_SUCCESS;
 }
 
 /**
@@ -338,138 +355,149 @@ export async function handleSummarize(args) {
  * @returns {Promise<number>} Exit code
  */
 export async function main() {
-  const { subcommand, commitRef, help, subcommandArgs } = parseArgs();
-
-  if (DEBUG) {
-    logger.level = 'debug';
-  }
-
-  // Show help if requested
-  if (help) {
-    showHelp();
-    return EXIT_SUCCESS;
-  }
-
-  // Route to subcommand handlers
-  if (subcommand === 'summarize') {
-    return await handleSummarize(subcommandArgs);
-  }
-
-  logger.debug('Starting commit-story');
-  logger.debug({ commitRef }, 'Commit ref');
-
-  // Validate git repository
-  if (!isGitRepository()) {
-    logger.error('Not a git repository — run commit-story from within a git repository');
-    return EXIT_ERROR;
-  }
-
-  // Validate commit reference
-  if (!isValidCommitRef(commitRef)) {
-    logger.error({ commitRef }, 'Invalid commit reference — check that the commit exists: git log --oneline');
-    return EXIT_ERROR;
-  }
-
-  // Validate environment
-  if (!validateEnvironment()) {
-    return EXIT_ERROR;
-  }
-
-  // Check skip conditions BEFORE expensive context collection
-  logger.debug('Checking skip conditions');
-
-  // Skip journal-entries-only commits
-  if (isJournalEntriesOnlyCommit(commitRef)) {
-    logger.info('Skipping: only journal entries changed');
-    return EXIT_SKIPPED;
-  }
-
-  // Check for merge commits
-  const mergeInfo = isMergeCommit(commitRef);
-  logger.debug({ isMerge: mergeInfo.isMerge }, 'Merge commit check');
-
-  // Gather context
-  logger.debug('Gathering context');
-  const context = await gatherContextForCommit(commitRef);
-  logger.debug({
-    messageCount: context.chat?.messageCount || 0,
-    diffLength: context.commit?.diff?.length || 0,
-  }, 'Context gathered');
-
-  // Skip empty merge commits (no chat AND no diff)
-  if (mergeInfo.isMerge) {
-    const hasChat = context.chat && context.chat.messageCount > 0;
-    const hasDiff = context.commit && context.commit.diff && context.commit.diff.trim().length > 0;
-
-    if (!hasChat && !hasDiff) {
-      logger.info('Skipping: merge commit with no changes');
-      return EXIT_SKIPPED;
-    }
-    logger.debug({ hasChat, hasDiff }, 'Processing merge commit');
-  }
-
-  // Generate journal sections
-  logger.debug('Generating journal sections');
-  const sections = await generateJournalSections(context);
-  logger.debug({
-    hasSummary: !!sections.summary,
-    hasDialogue: !!sections.dialogue,
-    hasTechnical: !!sections.technicalDecisions,
-    errors: sections.errors?.length || 0,
-  }, 'Sections generated');
-
-  // Discover reflections for time window
-  const previousCommitTime = getPreviousCommitTime(commitRef);
-  const currentCommitTime = context.commit.timestamp;
-  logger.debug({ from: previousCommitTime, to: currentCommitTime }, 'Reflection window');
-
-  const reflections = await discoverReflections(previousCommitTime, currentCommitTime);
-  logger.debug({ count: reflections.length }, 'Reflections found');
-
-  // Save journal entry
-  logger.debug('Saving journal entry');
-  const savedPath = await saveJournalEntry(sections, context.commit, reflections, '.', { debug: (msg) => logger.debug(msg) });
-
-  logger.info({ path: savedPath }, 'Journal entry saved');
-
-  // Log any generation errors
-  if (sections.errors && sections.errors.length > 0) {
-    for (const err of sections.errors) {
-      logger.warn({ error: err }, 'Section generation issue');
-    }
-  }
-
-  // Auto-generate daily and weekly summaries for unsummarized past days/weeks
-  if (config.autoSummarize) {
-    logger.debug('Checking for unsummarized days and weeks');
+  return tracer.startActiveSpan('commit_story.cli.main', async (span) => {
     try {
-      const summaryResult = await triggerAutoSummaries('.', {
-        onProgress: (msg) => logger.debug(msg),
-      });
+      const { subcommand, commitRef, help, subcommandArgs } = parseArgs();
+      span.setAttribute('vcs.ref.head.revision', commitRef);
 
-      if (summaryResult.generated.length > 0) {
-        const dailyCount = summaryResult.generated.filter(p => p.includes('daily')).length;
-        const weeklyCount = summaryResult.generated.filter(p => p.includes('weekly')).length;
-        const monthlyCount = summaryResult.generated.filter(p => p.includes('monthly')).length;
-        logger.info({ dailyCount, weeklyCount, monthlyCount }, 'Auto-generated summaries');
-        for (const path of summaryResult.generated) {
-          logger.debug({ path }, 'Summary path');
+      if (DEBUG) {
+        logger.level = 'debug';
+      }
+
+      // Show help if requested
+      if (help) {
+        showHelp();
+        return EXIT_SUCCESS;
+      }
+
+      // Route to subcommand handlers
+      if (subcommand === 'summarize') {
+        return await handleSummarize(subcommandArgs);
+      }
+
+      logger.debug('Starting commit-story');
+      logger.debug({ commitRef }, 'Commit ref');
+
+      // Validate git repository
+      if (!isGitRepository()) {
+        logger.error('Not a git repository — run commit-story from within a git repository');
+        return EXIT_ERROR;
+      }
+
+      // Validate commit reference
+      if (!isValidCommitRef(commitRef)) {
+        logger.error({ commitRef }, 'Invalid commit reference — check that the commit exists: git log --oneline');
+        return EXIT_ERROR;
+      }
+
+      // Validate environment
+      if (!validateEnvironment()) {
+        return EXIT_ERROR;
+      }
+
+      // Check skip conditions BEFORE expensive context collection
+      logger.debug('Checking skip conditions');
+
+      // Skip journal-entries-only commits
+      if (isJournalEntriesOnlyCommit(commitRef)) {
+        logger.info('Skipping: only journal entries changed');
+        return EXIT_SKIPPED;
+      }
+
+      // Check for merge commits
+      const mergeInfo = isMergeCommit(commitRef);
+      logger.debug({ isMerge: mergeInfo.isMerge }, 'Merge commit check');
+
+      // Gather context
+      logger.debug('Gathering context');
+      const context = await gatherContextForCommit(commitRef);
+      logger.debug({
+        messageCount: context.chat?.messageCount || 0,
+        diffLength: context.commit?.diff?.length || 0,
+      }, 'Context gathered');
+
+      // Skip empty merge commits (no chat AND no diff)
+      if (mergeInfo.isMerge) {
+        const hasChat = context.chat && context.chat.messageCount > 0;
+        const hasDiff = context.commit && context.commit.diff && context.commit.diff.trim().length > 0;
+
+        if (!hasChat && !hasDiff) {
+          logger.info('Skipping: merge commit with no changes');
+          return EXIT_SKIPPED;
+        }
+        logger.debug({ hasChat, hasDiff }, 'Processing merge commit');
+      }
+
+      // Generate journal sections
+      logger.debug('Generating journal sections');
+      const sections = await generateJournalSections(context);
+      logger.debug({
+        hasSummary: !!sections.summary,
+        hasDialogue: !!sections.dialogue,
+        hasTechnical: !!sections.technicalDecisions,
+        errors: sections.errors?.length || 0,
+      }, 'Sections generated');
+
+      // Discover reflections for time window
+      const previousCommitTime = getPreviousCommitTime(commitRef);
+      const currentCommitTime = context.commit.timestamp;
+      logger.debug({ from: previousCommitTime, to: currentCommitTime }, 'Reflection window');
+
+      const reflections = await discoverReflections(previousCommitTime, currentCommitTime);
+      logger.debug({ count: reflections.length }, 'Reflections found');
+
+      // Save journal entry
+      logger.debug('Saving journal entry');
+      const savedPath = await saveJournalEntry(sections, context.commit, reflections, '.', { debug: (msg) => logger.debug(msg) });
+
+      logger.info({ path: savedPath }, 'Journal entry saved');
+
+      // Log any generation errors
+      if (sections.errors && sections.errors.length > 0) {
+        for (const err of sections.errors) {
+          logger.warn({ error: err }, 'Section generation issue');
         }
       }
 
-      if (summaryResult.failed.length > 0) {
-        logger.warn({ count: summaryResult.failed.length }, 'Failed to auto-generate summaries');
-        for (const dateStr of summaryResult.failed) {
-          logger.warn({ date: dateStr }, 'Failed summary date');
+      // Auto-generate daily and weekly summaries for unsummarized past days/weeks
+      if (config.autoSummarize) {
+        logger.debug('Checking for unsummarized days and weeks');
+        try {
+          const summaryResult = await triggerAutoSummaries('.', {
+            onProgress: (msg) => logger.debug(msg),
+          });
+
+          if (summaryResult.generated.length > 0) {
+            const dailyCount = summaryResult.generated.filter(p => p.includes('daily')).length;
+            const weeklyCount = summaryResult.generated.filter(p => p.includes('weekly')).length;
+            const monthlyCount = summaryResult.generated.filter(p => p.includes('monthly')).length;
+            logger.info({ dailyCount, weeklyCount, monthlyCount }, 'Auto-generated summaries');
+            for (const path of summaryResult.generated) {
+              logger.debug({ path }, 'Summary path');
+            }
+          }
+
+          if (summaryResult.failed.length > 0) {
+            logger.warn({ count: summaryResult.failed.length }, 'Failed to auto-generate summaries');
+            for (const dateStr of summaryResult.failed) {
+              logger.warn({ date: dateStr }, 'Failed summary date');
+            }
+          }
+        } catch (err) {
+          // Auto-summarize failures should not block the main flow
+          logger.warn(err, 'Auto-summarize error');
         }
       }
-    } catch (err) {
-      // Auto-summarize failures should not block the main flow
-      logger.warn(err, 'Auto-summarize error');
+
+      return EXIT_SUCCESS;
+    } catch (error) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
     }
-  }
-
-  return EXIT_SUCCESS;
+  });
 }
 
 // Run when executed directly (not when imported by tests)
